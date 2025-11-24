@@ -8,7 +8,7 @@
     'author': 'darshaka',
     'depends': ['website',  'website_sale'],
     'data': ['views/templates.xml'],
-    'sequence': 10,
+    'sequence': 20,
     'application': False,
     'auto_install': False,
 }
