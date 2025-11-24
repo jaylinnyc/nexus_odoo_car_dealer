@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="product_custom_add_to_cart" inherit_id="website_sale.cta_wrapper">
+      <xpath expr="//a[@id='add_to_cart']" position="replace">
+
+            <a id="reserve_now_btn"
+               role="button"
+               href="#"
+               class="btn btn-primary btn-md flex-grow-1"
+             >
+                Reserve Now
+            </a>
+
+        </xpath>
+    </template>
+</odoo>
