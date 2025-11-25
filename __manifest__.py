@@ -20,6 +20,8 @@ Car Dealer Customizations
         'sale',              # needed for sale.order, sale.order.line
         'website',
         'website_sale',
+        'payment',
+        'mail'
         # 'stock',           # uncomment if you added vehicle stock/lots
         # 'account',         # if you touch invoices
     ],
@@ -27,10 +29,12 @@ Car Dealer Customizations
     # All your files — add every folder/file you have
     'data': [
         # Security (add if you created any)
-        # 'security/ir.model.access.csv',
+        'security/ir.model.access.csv',
 
         # Views
-        'views/templates.xml',               # your existing website templates
+        'views/reservation_sequence.xml',
+        'views/reserve_now_btn.xml' 
+        # your existing website templates
         # 'views/vehicle_views.xml',        # if you added vehicle model
 
         # Reports / QWeb templates (if any)
@@ -39,6 +43,11 @@ Car Dealer Customizations
         # Data (if you added demo/data)
         # 'data/vehicle_data.xml',
     ],
+    'assets': {
+        'web.assets_frontend': [
+            'car_reservation/static/src/js/reserve_service.js',  
+        ],
+    },
 
     # Only if you created new models and want demo data
     # 'demo': [
