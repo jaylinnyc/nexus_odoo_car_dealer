@@ -11,7 +11,7 @@ class SaleOrder(models.Model):
         readonly=True,
     )
 
-    @api.depends('order_line.sequence', 'order_line.id')
+    @api.depends('order_line.sequence')
     def _compute_first_order_line(self):
         for order in self:
             if order.order_line:
