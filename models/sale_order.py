@@ -10,6 +10,15 @@ class SaleOrder(models.Model):
         store=True,          # Important: stored so you can use it in domains, Sign, etc.
         readonly=True,
     )
+    
+    # just a regular Many2one to product
+    linked_car = fields.Many2one(
+        'product.product',
+        string='Linked Car',
+        domain=[('detailed_type', '=', 'product')],  # or whatever makes sense for cars
+        help="Car linked to this sales order (used for subscription/storage)",
+        tracking=True,  # optional: shows changes in chatter
+    )
 
     @api.depends('order_line.sequence')
     def _compute_first_order_line(self):
