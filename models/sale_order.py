@@ -15,7 +15,7 @@ class SaleOrder(models.Model):
     linked_car = fields.Many2one(
         'product.product',
         string='Linked Car',
-        domain=[('detailed_type', '=', 'product')],  # or whatever makes sense for cars
+        domain="[('categ_id.name', '=', 'Storage')]",  # or whatever makes sense for cars
         help="Car linked to this sales order (used for subscription/storage)",
         tracking=True,  # optional: shows changes in chatter
     )
