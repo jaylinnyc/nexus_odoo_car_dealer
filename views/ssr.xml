@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="ssr_inventory" name="Car Inventory Listing Page">
+        <t t-call="website.layout">
+            <div id="wrap">
+                <div class="container oe_structure pt32 pb32">
+                    <h1 class="text-center" t-esc="page_title"/>
+
+                    <div class="row mt-4">
+                        <t t-if="cars">
+                            <t t-foreach="cars" t-as="car">
+                                <div class="col-lg-4 col-md-6 mb-4">
+                                    <div class="card h-100 shadow-sm">
+                                        <img
+                                                t-attf-src="/web/image?model=product.template&amp;id={{car['id']}}&amp;field=image_256"
+                                                class="card-img-top img-fluid"
+                                                t-att-alt="car['name']"
+                                        />
+                                        <div class="card-body">
+                                            <h5 class="card-title text-primary" t-esc="car['name']"/>
+
+                                            <p class="card-text text-success lead">
+                                                Price: $
+                                                <span t-esc="'%.2f' % car['list_price']" style="font-weight: bold;"/>
+                                            </p>
+
+                                            <div class="text-muted small">
+                                                <t t-esc="car['description_sale'] or 'No description provided.'"/>
+                                            </div>
+
+                                            <a t-attf-href="/inventory-cars/{{car['id']}}" class="btn btn-outline-primary btn-sm mt-3">View Details</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </t>
+                        </t>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+</odoo>

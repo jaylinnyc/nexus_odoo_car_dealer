@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="product_ssr" name="SSR Product Detail Page">
+        <t t-call="website.layout">
+            <div id="wrap">
+                <div class="container oe_structure pt32 pb32">
+
+                    <t t-set="product" t-value="product"/>
+
+                    <div class="o_product_detail_page mt-5">
+
+                        <div class="row">
+                            <!-- Left Column: Image -->
+                            <div class="col-lg-6 mb-4">
+                                <div class="product-image-container p-3 rounded" style="background-color: var(--card-bg-dark);">
+                                    <!-- Dynamic Image Source using t-attf-src -->
+                                    <img
+                                        t-attf-src="/web/image?model=product.template&amp;id={{product['id']}}&amp;field=image_1024"
+                                        class="img-fluid rounded"
+                                        t-att-alt="product['name']"
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- Right Column: Details and Actions -->
+                            <div class="col-lg-6 mb-4">
+                                <div class="product-details-container p-4 rounded" style="background-color: var(--card-bg-dark); color: var(--text-light);">
+
+                                    <!-- Product Name -->
+                                    <h1 class="display-4 text-light" t-esc="product['name']"/>
+                                    <hr class="mb-4" style="border-color: var(--button-dark-bg);"/>
+
+                                    <!-- Price (Uses server-side formatting for correctness) -->
+                                    <h2 class="mb-4" style="color: var(--primary-yellow) !important;">
+                                        <span t-raw="price_formatted"/>
+                                    </h2>
+
+                                    <!-- Stock Status -->
+                                    <div class="mb-4">
+                                        <t t-if="product['qty_available'] > 0">
+                                            <span class="badge bg-success py-2 px-3">In Stock: <t t-esc="product['qty_available']"/></span>
+                                        </t>
+                                        <t t-else="">
+                                            <span class="badge bg-danger py-2 px-3">Sold Out</span>
+                                        </t>
+                                    </div>
+
+
+                                    <div class="d-grid gap-2 d-md-block mb-5">
+                                        <button class="btn btn-warning btn-md me-2" id="open_reservation_modal" data-bs-toggle="modal" data-bs-target="#reservationModal">
+                                            Reserve Now
+                                        </button>
+                                        <a href="/inventory-cars" class="btn btn-outline-secondary btn-md" style="color: var(--text-light); border-color: var(--button-dark-bg);">
+                                            <i class="fa fa-undo me-2"/> Back to Inventory
+                                        </a>
+                                    </div>
+
+                                    <!-- Description -->
+                                    <h3 class="h5 mt-4" style="color: var(--text-muted-dark);">Description</h3>
+                                    <div class="text-muted" style="color: var(--text-muted-dark) !important;">
+                                        <t t-raw="product['description_sale'] or 'No detailed description available.'"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- Customer Info Dialog -->
+                    <div class="modal fade" id="reservationModal" tabindex="-1" aria-labelledby="reservationModalLabel" aria-hidden="true">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="reservationModalLabel">**Secure Your Reservation**</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <form id="customer_reservation_form" action="/reservation/submit" method="POST">
+                                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                            **<input type="hidden" name="product_id" t-att-value="product['id']"/>**
+
+                                            <div class="mb-3">
+                                                <label for="customer_name" class="form-label required">Full Name</label>
+                                                <input type="text" class="form-control" id="customer_name" name="name" required="required"/>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="customer_email" class="form-label required">Email</label>
+                                                <input type="email" class="form-control" id="customer_email" name="email" required="required"/>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="customer_phone" class="form-label">Phone</label>
+                                                <input type="tel" class="form-control" id="customer_phone" name="phone"/>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="customer_message" class="form-label">Message</label>
+                                                <textarea class="form-control" id="customer_message" name="comment"></textarea>
+                                            </div>
+
+                                            <div class="d-grid">
+                                                <button type="submit" class="btn btn-warning">Proceed to Payment</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                </div>
+            </div>
+        </t>
+    </template>
+</odoo>

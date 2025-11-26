@@ -34,8 +34,9 @@ Car Dealer Customizations
         # Views
         # 'views/reservation_sequence.xml',
         # 'views/reserve_now_btn.xml' 
-        'views/inventory.xml',
-        'views/product.xml'
+        'views/ssr.xml',
+        'views/ssr_product.xml',
+        'views/payment_view.xml'
         # your existing website templates
         # 'views/vehicle_views.xml',        # if you added vehicle model
 
@@ -45,16 +46,6 @@ Car Dealer Customizations
         # Data (if you added demo/data)
         # 'data/vehicle_data.xml',
     ],
-    'assets': {
-        'web.assets_frontend': [
-            # 'car_reservation/static/src/js/reserve_service.js',
-            'NEXUS_ODOO_CAR_DEALER/static/src/js/inventory_template.js',
-            'NEXUS_ODOO_CAR_DEALER/static/src/js/product_template.js',
-            'NEXUS_ODOO_CAR_DEALER/static/src/js/components/inventory.js',
-            'NEXUS_ODOO_CAR_DEALER/static/src/js/components/product.js',
-            'NEXUS_ODOO_CAR_DEALER/static/src/css/car_store_theme.css',  
-        ],
-    },
 
     # Only if you created new models and want demo data
     # 'demo': [
