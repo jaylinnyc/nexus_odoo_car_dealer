@@ -48,11 +48,11 @@ Car Dealer Customizations
     'assets': {
         'web.assets_frontend': [
             # 'car_reservation/static/src/js/reserve_service.js',
-            'car_store/static/src/js/inventory_template.js',
-            'car_store/static/src/js/product_template.js',
-            'car_store/static/src/js/components/inventory.js',
-            'car_store/static/src/js/components/product.js',
-            'car_store/static/src/css/car_store_theme.css',  
+            'NEXUS_ODOO_CAR_DEALER/static/src/js/inventory_template.js',
+            'NEXUS_ODOO_CAR_DEALER/static/src/js/product_template.js',
+            'NEXUS_ODOO_CAR_DEALER/static/src/js/components/inventory.js',
+            'NEXUS_ODOO_CAR_DEALER/static/src/js/components/product.js',
+            'NEXUS_ODOO_CAR_DEALER/static/src/css/car_store_theme.css',  
         ],
     },
 
