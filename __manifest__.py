@@ -34,7 +34,7 @@ Car Dealer Customizations
         # Views
         # 'views/reservation_sequence.xml',
         # 'views/reserve_now_btn.xml' 
-        'views/ssr.xml',
+        'views/ssr_inventory.xml',
         'views/ssr_product.xml',
         'views/payment_view.xml'
         # your existing website templates

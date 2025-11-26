@@ -2,7 +2,7 @@ from odoo import http
 from odoo.http import request
 
 class Inventory(http.Controller):
-    @http.route('/inventory-cars', type='http', auth='public', website=True)
+    @http.route('/inventory', type='http', auth='public', website=True)
     def render_inventory_cars(self, **kw):
         cars = request.env['product.template'].sudo().search_read(
             [],
@@ -17,7 +17,7 @@ class Inventory(http.Controller):
 
         return request.render('car_store.ssr_inventory', values)
 
-    @http.route('/inventory-cars/<int:product_id>', type='http', auth='public', website=True)
+    @http.route('/inventory/<int:product_id>', type='http', auth='public', website=True)
     def render_product_page_ssr(self, product_id):
         # Fetch the product data on the server
         ProductTemplate = request.env['product.template'].sudo()
