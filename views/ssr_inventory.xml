@@ -28,7 +28,7 @@
                                                 <t t-esc="car['description_sale'] or 'No description provided.'"/>
                                             </div>
 
-                                            <a t-attf-href="/inventory-cars/{{car['id']}}" class="btn btn-outline-primary btn-sm mt-3">View Details</a>
+                                            <a t-attf-href="/inventory/{{car['id']}}" class="btn btn-outline-primary btn-sm mt-3">View Details</a>
                                         </div>
                                     </div>
                                 </div>
