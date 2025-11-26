@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="inventory" name="Inventory Page">
+        <t t-call="website.layout">
+            <div id="wrap">
+                <div class="container oe_structure pt32 pb32">
+                    <div id="root"/>
+                </div>
+            </div>
+        </t>
+    </template>
+</odoo>

@@ -32,8 +32,10 @@ Car Dealer Customizations
         'security/ir.model.access.csv',
 
         # Views
-        'views/reservation_sequence.xml',
-        'views/reserve_now_btn.xml' 
+        # 'views/reservation_sequence.xml',
+        # 'views/reserve_now_btn.xml' 
+        'views/inventory.xml',
+        'views/product.xml'
         # your existing website templates
         # 'views/vehicle_views.xml',        # if you added vehicle model
 
@@ -45,7 +47,12 @@ Car Dealer Customizations
     ],
     'assets': {
         'web.assets_frontend': [
-            'car_reservation/static/src/js/reserve_service.js',  
+            # 'car_reservation/static/src/js/reserve_service.js',
+            'car_store/static/src/js/inventory_template.js',
+            'car_store/static/src/js/product_template.js',
+            'car_store/static/src/js/components/inventory.js',
+            'car_store/static/src/js/components/product.js',
+            'car_store/static/src/css/car_store_theme.css',  
         ],
     },
 
