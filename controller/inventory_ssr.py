@@ -15,7 +15,7 @@ class Inventory(http.Controller):
             'page_title': "Car Inventory",
         }
 
-        return request.render('car_store.ssr_inventory', values)
+        return request.render('nexus_odoo_car_dealer.ssr_inventory', values)
 
     @http.route('/inventory/<int:product_id>', type='http', auth='public', website=True)
     def render_product_page_ssr(self, product_id):
@@ -38,4 +38,4 @@ class Inventory(http.Controller):
         }
 
         # Render the template 'car_store.product_ssr'
-        return request.render('car_store.product_ssr', values)
+        return request.render('nexus_odoo_car_dealer.product_ssr', values)
