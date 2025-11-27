@@ -1,2 +1,2 @@
-from . import inventory_ssr
+from . import main
 from . import reservation_controller
