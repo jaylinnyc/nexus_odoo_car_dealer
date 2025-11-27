@@ -63,7 +63,7 @@ class ContactController(http.Controller):
             # --- 2. Sales Order (SO) Creation ---
             try:
                 # 2a. Fetch required records
-                product = request.env['product.template'].sudo().search([('product_tmpl_id', '=', product_id)],
+                product = request.env['product.template'].sudo().search([('id', '=', product_id)],
                                                                        limit=1)
 
                 if not product:
