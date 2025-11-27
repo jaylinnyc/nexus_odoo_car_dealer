@@ -63,7 +63,7 @@ class ContactController(http.Controller):
             # --- 2. Sales Order (SO) Creation ---
             try:
                 # 2a. Fetch required records
-                product = request.env['product.product'].sudo().search([('product_tmpl_id', '=', product_id)],
+                product = request.env['product.template'].sudo().search([('product_tmpl_id', '=', product_id)],
                                                                        limit=1)
 
                 if not product:
@@ -75,11 +75,10 @@ class ContactController(http.Controller):
                     'partner_id': new_partner.id,
                     'partner_invoice_id': new_partner.id,
                     'partner_shipping_id': new_partner.id,
-                    'pricelist_id': request.website.get_current_website().default_pricelist_id.id,
-                    'website_id': request.website.id,
                     'order_line': [(0, 0, {  # (0, 0, VALUES) creates a new line
-                        'product_template_id': product.product_tmpl_id,
-                        'product_uom_qty': 1,  # One car reservation
+                        'product_template_id': product_id,
+                        'product_uom_qty': 1,
+                        'name': product.name,# One car reservation
                         'price_unit': product.list_price,# Use list price as base
                     })]
                 }
@@ -103,12 +102,3 @@ class ContactController(http.Controller):
             # 5. Error: Log and Re-render the form with error messages
             # For UX, you should catch specific validation errors and provide user feedback.
             request.env.cr.rollback()  # Rollback any failed transaction
-
-            countries = request.env['res.country'].sudo().search([])
-
-            # Re-render the form, preserving user input and showing an error
-            return request.render('reservation_module.contact_form_template', {
-                'error': {'general': "An error occurred while creating the contact."},
-                'partner': post,  # Pass submitted data back for persistence
-                'countries': countries,
-            })
