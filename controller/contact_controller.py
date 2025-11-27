@@ -26,7 +26,7 @@ class ContactController(http.Controller):
             'partner': {},  # To hold submitted values in case of error
         }
 
-        return request.render('car_store.contact_form_template', render_values)
+        return request.render('nexus_odoo_car_dealer.contact_form_template', render_values)
 
     @http.route(
         '/reservation/create_contact',
