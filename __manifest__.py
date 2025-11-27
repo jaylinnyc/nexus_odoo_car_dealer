@@ -29,14 +29,11 @@ Car Dealer Customizations
     # All your files — add every folder/file you have
     'data': [
         # Security (add if you created any)
-        'security/ir.model.access.csv',
 
         # Views
         # 'views/reservation_sequence.xml',
         # 'views/reserve_now_btn.xml' 
-        'views/ssr_inventory.xml',
-        'views/ssr_product.xml',
-        'views/payment_view.xml'
+        'views/reserve_now_btn.xml'
         # your existing website templates
         # 'views/vehicle_views.xml',        # if you added vehicle model
 
