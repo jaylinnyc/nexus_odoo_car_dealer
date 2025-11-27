@@ -13,6 +13,5 @@ class ReservationController(http.Controller):
         Product = request.env['product.product'].sudo()
         product = Product.browse(int(product_id))
         print(product)
-        available_for_sale = product.qty_available - product.reserved_qty
-        if available_for_sale < 1.0:
-            return {'error': _("This car is currently reserved by another customer.")}
+       
+        
