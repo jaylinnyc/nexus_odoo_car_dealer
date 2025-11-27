@@ -16,6 +16,7 @@
 
                             <form action="/reservation/create_contact" method="POST">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <input type="hidden" name="product_id" t-att-value="product_id"/>
 
                                 <div class="form-group row mb-3">
                                     <label for="partner_name" class="col-sm-3 col-form-label">Full Name</label>
