@@ -33,7 +33,6 @@ Car Dealer Customizations
         # Views
         # 'views/reservation_sequence.xml',
         # 'views/reserve_now_btn.xml'
-        'data/product_category.xml', 
         'views/reserve_now_btn.xml',
         'views/contact_form.xml',
         # your existing website templates
