@@ -29,3 +29,15 @@ class SaleOrder(models.Model):
                 order.first_order_line_id = first_line
             else:
                 order.first_order_line_id = False
+                
+
+    def action_confirm(self):
+        res = super(SaleOrder, self).action_confirm()
+        appointment = self.env['calendar.event'].search([
+            ('sale_order_id', '=', self.id), 
+            ('physical_product_id', '!=', False) # Filter for vehicle reservations
+        ], limit=1)
+        if appointment:
+            appointment.action_confirm_reservation_and_unpublish_product()
+            
+        return res

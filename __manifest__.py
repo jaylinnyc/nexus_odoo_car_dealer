@@ -24,6 +24,7 @@ Car Dealer Customizations
         'payment',
         'mail',
         'appointment',
+        'website_appointment_sale'
         # 'stock',           # uncomment if you added vehicle stock/lots
         # 'account',         # if you touch invoices
     ],
