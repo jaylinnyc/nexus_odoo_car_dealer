@@ -1,6 +1,6 @@
 from odoo import http
 from odoo.http import request
-from odoo.addons.website_appointment.controllers.main import WebsiteAppointment
+from odoo.website_appointment.controllers.main import WebsiteAppointment
 
 class WebsiteAppointmentExtended(WebsiteAppointment):
     @http.route(['/website/appointment/submit'], type='http', auth="public", website=True, csrf=True)
