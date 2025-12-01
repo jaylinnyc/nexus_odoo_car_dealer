@@ -15,7 +15,7 @@ class WebsiteAppointmentExtended(AppointmentController):
         
         
         # 3. Call super() on the new parent class
-        response = super(WebsiteAppointmentExtended, self).appointment_submit(**kwargs)
+        response = super(WebsiteAppointmentExtended, self).appointment_form_submit(**kwargs)
 
         # 4. Logic to write the product_id (handled safely for Odoo 19/HTTP Response)
         if product_id:
