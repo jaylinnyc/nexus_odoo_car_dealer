@@ -34,7 +34,7 @@ Car Dealer Customizations
         # Views
         # 'views/reservation_sequence.xml',
         # 'data/appointment_data.xml',
-        'views/reserve_now_btn.xml',
+        'views/test.xml',
         # your existing website templates
         # 'views/vehicle_views.xml',        # if you added vehicle model
 
