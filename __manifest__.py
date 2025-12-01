@@ -17,6 +17,7 @@ Car Dealer Customizations
 
     # IMPORTANT: Add all modules you now depend on
     'depends': [
+        'base',
         'sale',              # needed for sale.order, sale.order.line
         'website',
         'website_sale',
