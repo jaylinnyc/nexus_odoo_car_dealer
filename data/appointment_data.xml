@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <record id="reservation_product_xmlid" model="product.template">
-        <field name="name">Vehicle Reservation</field>
+        <field name="name">View Reserved Vehicle</field>
         <field name="type">service</field>
         <field name="list_price">100.0</field>
         <field name="sale_ok">True</field>        <!-- Enable for sales/eCommerce -->

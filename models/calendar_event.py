@@ -15,8 +15,7 @@ class CalendarEvent(models.Model):
 
     def _compute_sale_order_id(self):
         for event in self:
-            sale_order = self.env['sale.order'].search([('calendar_event_id', '=', event.id)], limit=1)
-            event.sale_order_id = sale_order.id if sale_order else False
+            event.sale_order_id = event.sale_order_line_ids and event.sale_order_line_ids[0].order_id or False
             
     def action_confirm_reservation_and_reduce_stock(self):
         """
