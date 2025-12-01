@@ -22,7 +22,7 @@ Car Dealer Customizations
         'website_sale',
         'payment',
         'mail',
-        'website_appointment',
+        'appointment',
         # 'stock',           # uncomment if you added vehicle stock/lots
         # 'account',         # if you touch invoices
     ],
