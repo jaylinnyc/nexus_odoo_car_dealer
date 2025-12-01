@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <template id="product_reserve_now" inherit_id="website_sale.cta_wrapper">
         <xpath expr="//a[@id='add_to_cart']" position="replace">
