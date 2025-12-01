@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="product_custom_add_to_cart" inherit_id="website_sale.cta_wrapper">
+        <xpath expr="//a[@id='add_to_cart']" position="replace">
+            <t t-if="product.type == 'consu' and product.categ_id.name == 'Vehicles'">
+                <a id="reserve_now_btn" role="button" t-attf-href="/appointment/#{request.env.ref('nexus_odoo_car_dealer.appointment_type_vehicle_reservation').sudo().id}?product_id=#{product.id}&amp;product_name=#{product.name}">
+                    Reserve Now
+                </a>
+            </t>
+            <t t-else="">
+                <!-- Fallback to original Add to Cart button -->
+                <a id="add_to_cart" role="button" href="#" t-attf-class="btn btn-primary js_check_product a-submit flex-grow-1" t-att-data-show-quantity="is_view_active('website_sale.product_quantity')" data-animation-selector=".o_wsale_product_images">
+                    <i class="fa fa-shopping-cart me-2"/>
+                    Add to cart
+                </a>
+            </t>
+        </xpath>
+    </template>
+</odoo>
