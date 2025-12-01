@@ -13,10 +13,29 @@ class WebsiteAppointmentExtended(AppointmentController):
         # Parse params from URL
         product_id = kwargs.get('product_id')
         
+        # 1. Prepare data for the super call
+        super_kwargs = kwargs.copy()
+        
+        # 2. Add required fields if they are missing (The reason for your TypeError)
+        # We use current date/time strings for validity, but the email will be fake.
+        import datetime
+        now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # Highlighted changes: Injecting hardcoded/dummy values if missing
+        if not super_kwargs.get('datetime_str'):
+            super_kwargs['datetime_str'] = now_str # Fallback Date/Time
+        if not super_kwargs.get('duration_str'):
+            super_kwargs['duration_str'] = '1.0'  # Fallback duration (1 hour)
+        if not super_kwargs.get('name'):
+            super_kwargs['name'] = 'Test User Name' # Fallback Name
+        if not super_kwargs.get('email'):
+            super_kwargs['email'] = 'test.user@dummy.com' # Fallback Email
+        
+        # --- END OF TEMPORARY FIX ---
+        
         
         # 3. Call super() on the new parent class
-        response = super(WebsiteAppointmentExtended, self).appointment_form_submit(**kwargs)
-
+        response = super(WebsiteAppointmentExtended, self).appointment_form_submit(**super_kwargs)
         # 4. Logic to write the product_id (handled safely for Odoo 19/HTTP Response)
         if product_id:
             # We must try to extract the created appointment from the response context
