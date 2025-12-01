@@ -6,7 +6,7 @@
                 <a id="reserve_now_btn"
                    role="button"
                   t-attf-href="/appointment/#{request.env.ref('nexus_odoo_car_dealer.appointment_type_vehicle_reservation').sudo().id}?product_id=#{product.id}&amp;product_name=#{product.name}"
-                   class="btn btn-primary btn-md flex-grow-1"
+                   class="btn btn-primary a-submit o_we_buy_now js_product"
                 >
                     Reserve Now
                 </a>
