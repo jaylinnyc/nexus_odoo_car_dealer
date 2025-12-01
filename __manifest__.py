@@ -21,7 +21,8 @@ Car Dealer Customizations
         'website',
         'website_sale',
         'payment',
-        'mail'
+        'mail',
+        'website_appointment',
         # 'stock',           # uncomment if you added vehicle stock/lots
         # 'account',         # if you touch invoices
     ],
@@ -32,6 +33,7 @@ Car Dealer Customizations
 
         # Views
         # 'views/reservation_sequence.xml',
+        'data/appointment_data.xml',
         'views/reserve_now_btn.xml',
         # your existing website templates
         # 'views/vehicle_views.xml',        # if you added vehicle model
