@@ -15,18 +15,18 @@ class WebsiteAppointmentExtended(AppointmentController):
         
         
         # 3. Call super() on the new parent class
-        # response = super(WebsiteAppointmentExtended, self).appointment_form_submit(**kwargs)
+        response = super(WebsiteAppointmentExtended, self).appointment_form_submit(**kwargs)
 
         # 4. Logic to write the product_id (handled safely for Odoo 19/HTTP Response)
-        # if product_id:
+        if product_id:
             # We must try to extract the created appointment from the response context
             # because super() returns an HTML Response, not a dict.
-        #     appointment = self._get_created_appointment_safe(response)
+            appointment = self._get_created_appointment_safe(response)
             
-        #     if appointment:
-        #         appointment.sudo().write({'physical_product_id': int(product_id)})
+            if appointment:
+                appointment.sudo().write({'physical_product_id': int(product_id)})
         
-        # return response
+        return response
         
 
     def _get_created_appointment_safe(self, response):
