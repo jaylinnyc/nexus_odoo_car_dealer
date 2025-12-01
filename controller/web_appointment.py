@@ -8,9 +8,10 @@ class WebsiteAppointmentExtended(AppointmentController):
     
     # Check if this route still matches the Odoo 19 standard, 
     # or if you are defining a custom endpoint.
-    @http.route(['/appointment/<int:product_id>'], type='http', auth="public", website=True, csrf=True)
-    def appointment_submit(self, product_id=None, **kwargs):
-
+    @http.route(['/appointment'], type='http', auth="public", website=True, csrf=True)
+    def appointment_submit(self, **kwargs):
+        # Parse params from URL
+        product_id = kwargs.get('product_id')
         
         # 3. Call super() on the new parent class
         response = super(WebsiteAppointmentExtended, self).appointment_submit(**kwargs)
