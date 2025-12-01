@@ -1,13 +1,19 @@
 <odoo>
     <template id="product_reserve_now" inherit_id="website_sale.cta_wrapper">
-<xpath expr="//a[@id='add_to_cart']" position="replace">
-            <a id="reserve_now_btn"
-               role="button"
-               t-attf-href="/reservation?product_id={{product.id}}"
-               class="btn btn-primary btn-md flex-grow-1"
-             >
-                Reserve Now
-            </a>
+        <xpath expr="//div[@id='add_to_cart_wrap']/a[@id='add_to_cart']" position="replace">
+            <t t-if="product.type == 'consu' and product.categ_id.name == 'Vehicles'">
+                <!-- Target consumable products in 'Vehicles' category -->
+                <a id="reserve_now_btn" t-attf-href="/appointment/#{request.env.ref('nexus_odoo_car_dealer.appointment_type_vehicle_reservation').sudo().id}?product_id=#{product.id}&amp;product_name=#{product.name}" class="btn btn-primary a-submit o_we_buy_now js_product">
+Reserve Now
+</a>
+            </t>
+            <t t-else="">
+                <!-- Fallback to original Add to Cart button -->
+                <a id="add_to_cart" role="button" href="#" t-attf-class="btn btn-primary js_check_product a-submit flex-grow-1" t-att-data-show-quantity="is_view_active('website_sale.product_quantity')" data-animation-selector=".o_wsale_product_images">
+                    <i class="fa fa-shopping-cart me-2"/>
+                    Add to cart
+                </a>
+            </t>
         </xpath>
     </template>
 </odoo>
