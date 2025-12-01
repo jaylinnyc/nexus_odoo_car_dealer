@@ -11,8 +11,8 @@
 
     <record id="appointment_type_vehicle_reservation" model="appointment.type">
         <field name="name">Vehicle Reservation</field>
-        <field name="appointment_duration">1.0</field>        <!-- Duration in hours; adjust as needed -->
-
+        <field name="appointment_duration">1.0</field>        <!-- Duration in hours; adjust as needed -->        <!-- Enable up-front payment -->
+        <field name="product_id" ref="nexus_odoo_car_dealer.reservation_product_xmlid"/>
         <!-- Link to the new "Vehicle Reservation" service product -->
         <!-- Add other fields as needed, e.g., <field name="website_published">True</field> to publish automatically -->
     </record>
