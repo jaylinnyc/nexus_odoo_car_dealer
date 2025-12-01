@@ -12,7 +12,7 @@
     <record id="appointment_type_vehicle_reservation" model="appointment.type">
         <field name="name">Vehicle Reservation</field>
         <field name="appointment_duration">1.0</field>        <!-- Duration in hours; adjust as needed -->
-        <field name="require_payment">True</field>        <!-- Enable up-front payment -->
+
         <!-- Link to the new "Vehicle Reservation" service product -->
         <!-- Add other fields as needed, e.g., <field name="website_published">True</field> to publish automatically -->
     </record>
