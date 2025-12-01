@@ -9,10 +9,7 @@ Reserve Now
             </t>
             <t t-else="">
                 <!-- Fallback to original Add to Cart button -->
-                <a id="add_to_cart" role="button" href="#" t-attf-class="btn btn-primary js_check_product a-submit flex-grow-1" t-att-data-show-quantity="is_view_active('website_sale.product_quantity')" data-animation-selector=".o_wsale_product_images">
-                    <i class="fa fa-shopping-cart me-2"/>
-                    Add to cart
-                </a>
+
             </t>
         </xpath>
     </template>
