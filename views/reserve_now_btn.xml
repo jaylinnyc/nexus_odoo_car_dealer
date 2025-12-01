@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <template id="product_reserve_now" inherit_id="website_sale.cta_wrapper">
+    <template id="product_custom_add_to_cart" inherit_id="website_sale.cta_wrapper">
         <xpath expr="//a[@id='add_to_cart']" position="replace">
             <t t-if="product.type == 'consu' and product.categ_id.name == 'Vehicles'">
                 <!-- Target consumable products in 'Vehicles' category -->
