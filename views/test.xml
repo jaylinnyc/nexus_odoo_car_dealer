@@ -3,7 +3,8 @@
     <template id="product_custom_add_to_cart" inherit_id="website_sale.cta_wrapper">
         <xpath expr="//a[@id='add_to_cart']" position="replace">
             <t t-if="product.type == 'consu' and product.categ_id.name == 'Vehicles'">
-                <a id="reserve_now_btn" role="button" t-attf-href="/appointment/#{request.env.ref('nexus_odoo_car_dealer.appointment_type_vehicle_reservation').sudo().id}?product_id=#{product.id}&amp;product_name=#{product.name}">
+                <a id="reserve_now_btn" role="button" t-attf-href="/appointment/#{request.env.ref('nexus_odoo_car_dealer.appointment_type_vehicle_reservation').sudo().id}?product_id=#{product.id}&amp;product_name=#{product.name}"
+class="btn btn-primary a-submit o_we_buy_now js_product">
                     Reserve Now
                 </a>
             </t>
