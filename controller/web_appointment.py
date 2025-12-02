@@ -12,7 +12,7 @@ class WebsiteAppointmentExtended(AppointmentController):
     
     # Check if this route still matches the Odoo 19 standard, 
     # or if you are defining a custom endpoint.
-    @http.route(['/appointment/<int:appointment_id_id>'], type='http', auth="public", website=True, csrf=True)
+    @http.route(['/appointment/<int:appointment_id>'], type='http', auth="public", website=True, csrf=True)
     def appointment_submit(self, appointment_id=None, **kwargs):
         # Parse params from URL
         product_id = kwargs.get('product_id')
@@ -27,6 +27,8 @@ class WebsiteAppointmentExtended(AppointmentController):
         now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
         # Highlighted changes: Injecting hardcoded/dummy values if missing
+        if not super_kwargs.get('appointment_type_id'):
+            super_kwargs['appointment_type_id'] = appointment_id
         if not super_kwargs.get('datetime_str'):
             super_kwargs['datetime_str'] = now_str # Fallback Date/Time
         if not super_kwargs.get('duration_str'):
