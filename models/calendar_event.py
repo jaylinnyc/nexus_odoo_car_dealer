@@ -31,8 +31,11 @@ class CalendarEvent(models.Model):
         """
         self.ensure_one()
         product = self.physical_product_id
+        _logger.info("Confirming reservation and unpublishing product ID %s", product.id)
+        
 
         if not product:
+            _logger.warning("No physical product linked to Calendar Event ID %s", self.id)
             return
         
         product.product_tmpl_id.sudo().write({'website_published': False})
