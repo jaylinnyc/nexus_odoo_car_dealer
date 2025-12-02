@@ -38,14 +38,14 @@ class SaleOrder(models.Model):
         res = super(SaleOrder, self).action_confirm()
         _logger.info("Sale Order %s confirmed. Checking for vehicle reservation appointments.", self.id)
         appointment = self.env['calendar.event'].search([
-            ('sale_order_id', '=', self.id), 
-            ('physical_product_id', '!=', False) # Filter for vehicle reservations
+            ('sale_order_line_ids', 'in', self.order_line.ids), 
         ], limit=1)
+        
         if appointment:
             appointment.action_confirm_reservation_and_unpublish_product()
             _logger.info(
                     "Vehicle reservation successfully confirmed and product (ID: %s) unpublished for Sale Order %s.", 
-                    appointment.physical_product_id.id,
+                    appointment.physical_product_id,
                     self.name
                 )
         else:
