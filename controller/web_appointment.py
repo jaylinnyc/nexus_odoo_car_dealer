@@ -30,7 +30,7 @@ class WebsiteAppointmentExtended(AppointmentController):
         if not super_kwargs.get('datetime_str'):
             super_kwargs['datetime_str'] = now_str # Fallback Date/Time
         if not super_kwargs.get('duration_str'):
-            super_kwargs['duration_str'] = '1.0'  # Fallback duration (1 hour)
+            super_kwargs['duration_str'] = '2.0'  # Fallback duration (1 hour)
         if not super_kwargs.get('name'):
             super_kwargs['name'] = 'Test User Name' # Fallback Name
         if not super_kwargs.get('email'):
