@@ -3,6 +3,10 @@ from odoo.http import request
 # 1. UPDATE IMPORT: The controller is now in 'appointment'
 from odoo.addons.appointment.controllers.appointment import AppointmentController
 
+import logging
+
+_logger = logging.getLogger(__name__)
+
 # 2. UPDATE CLASS: Inherit from AppointmentController
 class WebsiteAppointmentExtended(AppointmentController):
     
@@ -44,6 +48,15 @@ class WebsiteAppointmentExtended(AppointmentController):
             
             if appointment:
                 appointment.sudo().write({'physical_product_id': int(product_id)})
+                
+            # --- LOGGING ADDED HERE ---
+            _logger.info(
+                "Product ID %s written to new Calendar Event ID %s. physical_product_id: %s",
+                product_id,
+                appointment.id,
+                appointment.physical_product_id.id
+            )
+            # --- END LOGGING ---
         
         return response
         
