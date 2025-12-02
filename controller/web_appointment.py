@@ -23,7 +23,11 @@ class WebsiteAppointmentExtended(AppointmentController):
         
         if response.qcontext:
             response.qcontext['product_id'] = product_id
+            response.qcontext['product_name'] = product.name
+            response.qcontext['product_price'] = f"${product.lst_price:.2f}" 
         
         return response
+    
+
         
        
