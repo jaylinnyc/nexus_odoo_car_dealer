@@ -26,15 +26,7 @@ class WebsiteAppointmentExtended(AppointmentController):
         import datetime
         now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        # Highlighted changes: Injecting hardcoded/dummy values if missing
-        if not super_kwargs.get('datetime_str'):
-            super_kwargs['datetime_str'] = now_str # Fallback Date/Time
-        if not super_kwargs.get('duration_str'):
-            super_kwargs['duration_str'] = '2.0'  # Fallback duration (1 hour)
-        if not super_kwargs.get('name'):
-            super_kwargs['name'] = 'Test User Name' # Fallback Name
-        if not super_kwargs.get('email'):
-            super_kwargs['email'] = 'test.user@dummy.com' # Fallback Email
+
         
         # --- END OF TEMPORARY FIX ---
         
