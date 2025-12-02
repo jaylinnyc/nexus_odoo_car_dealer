@@ -36,6 +36,7 @@ class SaleOrder(models.Model):
 
     def action_confirm(self):
         res = super(SaleOrder, self).action_confirm()
+        _logger.info("Sale Order %s confirmed. Checking for vehicle reservation appointments.", self.id)
         appointment = self.env['calendar.event'].search([
             ('sale_order_id', '=', self.id), 
             ('physical_product_id', '!=', False) # Filter for vehicle reservations

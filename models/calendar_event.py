@@ -1,5 +1,9 @@
 from odoo import fields, models
 
+import logging
+
+_logger = logging.getLogger(__name__)
+
 class CalendarEvent(models.Model):
     _inherit = 'calendar.event'
 
@@ -15,7 +19,9 @@ class CalendarEvent(models.Model):
 
     def _compute_sale_order_id(self):
         for event in self:
+            _logger.info("Computing sale_order_id for Calendar Event ID %s", event.sale_order_line_ids)
             event.sale_order_id = event.sale_order_line_ids and event.sale_order_line_ids[0].order_id or False
+            _logger.info("Sale order lines linked to this event: %s", event.sale_order_id)
             
     def action_confirm_reservation_and_unpublish_product(self):
         """
