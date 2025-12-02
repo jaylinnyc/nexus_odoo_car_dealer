@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <template id="appointment_vehicle_show_case" inherit_id="appointment.appointment_meeting_user">
-        <xpath expr="//div[hasclass('mt-3 pt-3 border-top')]" position="after">
+        <xpath expr="//div[hasclass('mt-3')][hasclass('pt-3')][hasclass('border-top')]" position="after">
             <div>
                 Product ID: <t t-esc="product_id"/>
             </div>
