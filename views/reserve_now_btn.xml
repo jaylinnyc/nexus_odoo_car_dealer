@@ -5,7 +5,7 @@
             <t t-if="product.type == 'consu' and product.categ_id.name == 'Vehicles'">
                 <!-- Target consumable products in 'Vehicles' category -->
                 <a id="reserve_now_btn" 
-t-attf-href="/appointment/#{request.env.ref('nexus_odoo_car_dealer.appointment_type_vehicle_reservation').sudo().id}/submit?product_id=#{product.id}&amp;product_name=#{product.name}" 
+t-attf-href="/appointment/#{request.env.ref('nexus_odoo_car_dealer.appointment_type_vehicle_reservation').sudo().id}?product_id=#{product.id}&amp;product_name=#{product.name}" 
 class="btn btn-primary a-submit o_we_buy_now js_product">
 Reserve Now
                 </a>
