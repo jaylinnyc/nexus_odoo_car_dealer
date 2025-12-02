@@ -42,6 +42,11 @@ class SaleOrder(models.Model):
         ], limit=1)
         if appointment:
             appointment.action_confirm_reservation_and_unpublish_product()
+            _logger.info(
+                    "Vehicle reservation successfully confirmed and product (ID: %s) unpublished for Sale Order %s.", 
+                    appointment.physical_product_id.id,
+                    self.name
+                )
         else:
             _logger.info("No vehicle reservation appointment found for Sale Order ID %s", self.id)
             
