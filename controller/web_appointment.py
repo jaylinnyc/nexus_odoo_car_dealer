@@ -12,7 +12,7 @@ class WebsiteAppointmentExtended(AppointmentController):
     
     # Check if this route still matches the Odoo 19 standard, 
     # or if you are defining a custom endpoint.
-    @http.route(['/appointment/<int:appointment_type_id>'], type='http', auth="public", website=True, csrf=True)
+    @http.route(['/appointment/<int:appointment_type_id>'], type='http', auth="public", website=True, csrf=False)
     def appointment_submit(self, appointment_type_id=None, **kwargs):
         # Parse params from URL
         product_id = kwargs.get('product_id')
