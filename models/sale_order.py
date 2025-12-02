@@ -45,7 +45,7 @@ class SaleOrder(models.Model):
             appointment.action_confirm_reservation_and_unpublish_product()
             _logger.info(
                     "Vehicle reservation successfully confirmed and product (ID: %s) unpublished for Sale Order %s.", 
-                    appointment.id,
+                    appointment.physical_product_id.id,
                     self.name
                 )
         else:

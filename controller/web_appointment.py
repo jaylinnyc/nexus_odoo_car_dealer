@@ -16,6 +16,7 @@ class WebsiteAppointmentExtended(AppointmentController):
     def appointment_submit(self, appointment_id=None, **kwargs):
         # Parse params from URL
         product_id = kwargs.get('product_id')
+        _logger.info("Received appointment submission with product_id: %s", product_id)
         
         # 1. Prepare data for the super call
         super_kwargs = kwargs.copy()
@@ -45,6 +46,9 @@ class WebsiteAppointmentExtended(AppointmentController):
             # We must try to extract the created appointment from the response context
             # because super() returns an HTML Response, not a dict.
             appointment = self._get_created_appointment_safe(response)
+            
+            if not appointment:
+                _logger.error("Could not find created appointment to write product_id %s", product_id)          
             
             if appointment:
                 appointment.sudo().write({'physical_product_id': int(product_id)})
