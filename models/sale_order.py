@@ -1,4 +1,7 @@
 from odoo import models, fields, api
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
@@ -39,5 +42,7 @@ class SaleOrder(models.Model):
         ], limit=1)
         if appointment:
             appointment.action_confirm_reservation_and_unpublish_product()
+        else:
+            _logger.info("No vehicle reservation appointment found for Sale Order ID %s", self.id)
             
         return res
