@@ -17,7 +17,7 @@ class CalendarEvent(models.Model):
         for event in self:
             event.sale_order_id = event.sale_order_line_ids and event.sale_order_line_ids[0].order_id or False
             
-    def action_confirm_reservation_and_reduce_stock(self):
+    def action_confirm_reservation_and_unpublish_product(self):
         """
         Confirms the reservation and reduces the vehicle from stock.
         """
