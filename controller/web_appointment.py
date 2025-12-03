@@ -21,7 +21,7 @@ class WebsiteAppointmentExtended(AppointmentController):
         if response.qcontext:
             response.qcontext['product_id'] = product_id
             response.qcontext['product_name'] = product_name
-            response.qcontext['product_price'] = product_price 
+            response.qcontext['product_price'] = f"${product_price:.2f}" 
         
         return response
     
@@ -36,7 +36,7 @@ class WebsiteAppointmentExtended(AppointmentController):
         if response.qcontext:
             response.qcontext['product_id'] = product_id
             response.qcontext['product_name'] = product_name
-            response.qcontext['product_price'] = product_price 
+            response.qcontext['product_price'] = f"${product_price:.2f}" 
         
         return response
     
