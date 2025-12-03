@@ -1,13 +1,8 @@
 from odoo import http
 from odoo.http import request
-# 1. UPDATE IMPORT: The controller is now in 'appointment'
 from odoo.addons.appointment.controllers.appointment import AppointmentController
 
-import logging
 
-_logger = logging.getLogger(__name__)
-
-# 2. UPDATE CLASS: Inherit from AppointmentController
 class WebsiteAppointmentExtended(AppointmentController):
 
     @http.route(['/appointment/<int:appointment_type_id>'], type='http', auth="public", website=True, csrf=True)
