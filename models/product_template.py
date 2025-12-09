@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class ProductTemplate(models.Model):
@@ -63,3 +63,20 @@ class ProductTemplate(models.Model):
         default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_interest_expense', raise_if_not_found=False),
         help='Account to use for recording interest expenses. If not set, will search for an interest expense account.'
     )
+    has_purchase_order = fields.Boolean(
+        string='Has Purchase Order',
+        compute='_compute_has_purchase_order',
+        store=False,
+        help='Whether this product has a confirmed purchase order'
+    )
+
+    @api.depends('product_variant_ids')
+    def _compute_has_purchase_order(self):
+        """Check if product has any confirmed purchase orders"""
+        for product in self:
+            # Search for purchase order lines with this product
+            po_lines = self.env['purchase.order.line'].search([
+                ('product_id', 'in', product.product_variant_ids.ids),
+                ('order_id.state', 'in', ['purchase', 'done'])
+            ], limit=1)
+            product.has_purchase_order = bool(po_lines)

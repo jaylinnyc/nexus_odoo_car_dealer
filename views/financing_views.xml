@@ -45,7 +45,7 @@
             <field name="arch" type="xml">
                 <!-- Add Financing tab after Sales tab -->
                 <xpath expr="//notebook" position="inside">
-                    <page string="Financing" name="financing">
+                    <page string="Financing" name="financing" invisible="not has_purchase_order">
                         <group>
                             <group string="Financing Information">
                                 <field name="financing_type"/>
