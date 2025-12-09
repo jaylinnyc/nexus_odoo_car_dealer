@@ -114,8 +114,25 @@ class ProductTemplate(models.Model):
         """Create an interest bill for the given date."""
         self.ensure_one()
         
-        # Calculate monthly interest (simple interest: Principal * Rate / 12)
-        monthly_interest = (self.financing_amount * self.financing_rate / 100) / 12
+        # Calculate daily interest rate (Annual Rate / 365)
+        daily_rate = (self.financing_amount * self.financing_rate / 100) / 365
+        
+        # Determine the billing period
+        # For the first bill, start from financing_start_date
+        # For subsequent bills, start from the day after last_interest_bill_date
+        if self.last_interest_bill_date:
+            period_start = self.last_interest_bill_date + relativedelta(days=1)
+        else:
+            period_start = self.financing_start_date
+        
+        # Period end is the last day of the bill_date's month
+        period_end = (bill_date + relativedelta(day=31))
+        
+        # Calculate number of days in the billing period
+        days_charged = (period_end - period_start).days + 1  # +1 to include both start and end dates
+        
+        # Calculate interest for this period
+        monthly_interest = daily_rate * days_charged
         
         # Get the expense account to use
         # Priority: 1) User-specified account, 2) Interest expense account, 3) Financial costs, 4) Any expense account
@@ -150,9 +167,13 @@ class ProductTemplate(models.Model):
             'invoice_date': bill_date,
             'date': bill_date,
             'invoice_line_ids': [(0, 0, {
-                'name': _('Interest charge for %s - %s') % (
+                'name': _('Interest charge for %s - %s\nPeriod: %s to %s\nDaily Rate: $%.2f × %d days') % (
                     self.name,
-                    bill_date.strftime('%B %Y')
+                    bill_date.strftime('%B %Y'),
+                    period_start.strftime('%m/%d/%Y'),
+                    period_end.strftime('%m/%d/%Y'),
+                    daily_rate,
+                    days_charged
                 ),
                 'quantity': 1,
                 'price_unit': monthly_interest,
