@@ -94,11 +94,20 @@ class PurchaseOrder(models.Model):
     _inherit = 'purchase.order'
     
     def button_confirm(self):
-        """Override to create analytic accounts when PO is confirmed."""
+        """Override to create analytic accounts and set financing start date when PO is confirmed."""
         res = super().button_confirm()
         
         for order in self:
             for line in order.order_line:
                 line._create_analytic_account_for_vehicle()
+                
+                # Set financing start date if not already set
+                if line.product_id.financing_type == 'internal' and not line.product_id.financing_start_date:
+                    if order.date_order:
+                        # Handle both date and datetime fields
+                        start_date = order.date_order.date() if hasattr(order.date_order, 'date') else order.date_order
+                    else:
+                        start_date = fields.Date.today()
+                    line.product_id.financing_start_date = start_date
         
         return res

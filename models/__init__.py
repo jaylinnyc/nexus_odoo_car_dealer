@@ -4,3 +4,4 @@ from . import product_template
 from . import calendar_event
 from . import purchase_order_line
 from . import account_move
+from . import vehicle_financing

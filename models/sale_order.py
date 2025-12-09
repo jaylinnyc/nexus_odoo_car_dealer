@@ -50,5 +50,15 @@ class SaleOrder(models.Model):
                 )
         else:
             _logger.info("No vehicle reservation appointment found for Sale Order ID %s", self.id)
+        
+        # Mark vehicle financing as paid off when sold
+        for line in self.order_line:
+            if line.product_template_id.financing_status == 'active':
+                line.product_template_id.financing_status = 'paid_off'
+                _logger.info(
+                    "Financing marked as paid off for vehicle %s (Sale Order %s)", 
+                    line.product_template_id.name,
+                    self.name
+                )
             
         return res

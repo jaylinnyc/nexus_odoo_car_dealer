@@ -1,0 +1,96 @@
+<odoo>
+    <data>
+        <!-- Vehicle Financing Tree View -->
+        <record id="view_vehicle_financing_tree" model="ir.ui.view">
+            <field name="name">vehicle.financing.tree</field>
+            <field name="model">vehicle.financing</field>
+            <field name="arch" type="xml">
+                <tree string="Financing History" create="false" edit="false">
+                    <field name="bill_date"/>
+                    <field name="interest_amount"/>
+                    <field name="bill_id"/>
+                    <field name="state"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- Vehicle Financing Form View -->
+        <record id="view_vehicle_financing_form" model="ir.ui.view">
+            <field name="name">vehicle.financing.form</field>
+            <field name="model">vehicle.financing</field>
+            <field name="arch" type="xml">
+                <form string="Financing Bill" create="false">
+                    <sheet>
+                        <group>
+                            <group>
+                                <field name="product_id" readonly="True"/>
+                                <field name="bill_date" readonly="True"/>
+                            </group>
+                            <group>
+                                <field name="interest_amount" readonly="True"/>
+                                <field name="bill_id" readonly="True"/>
+                                <field name="state" readonly="True"/>
+                            </group>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Product Template Form View - Add Financing Tab -->
+        <record id="view_product_template_financing_form" model="ir.ui.view">
+            <field name="name">product.template.financing.form</field>
+            <field name="model">product.template</field>
+            <field name="inherit_id" ref="product.product_template_only_form_view"/>
+            <field name="arch" type="xml">
+                <!-- Add Financing tab after Sales tab -->
+                <xpath expr="//notebook" position="inside">
+                    <page string="Financing" name="financing">
+                        <group>
+                            <group string="Financing Information">
+                                <field name="financing_type"/>
+                                <field name="financing_amount" invisible="financing_type == 'none'" required="financing_type != 'none'"/>
+                                <field name="financing_rate" invisible="financing_type == 'none'" required="financing_type != 'none'"/>
+                                <field name="financing_partner_id" invisible="financing_type == 'none'" required="financing_type == 'internal'"/>
+                            </group>
+                            <group string="Financing Status">
+                                <field name="financing_status" invisible="financing_type == 'none'"/>
+                                <field name="financing_start_date" invisible="financing_type == 'none'"/>
+                                <field name="last_interest_bill_date" invisible="financing_type == 'none'"/>
+                            </group>
+                        </group>
+                        <div invisible="financing_type != 'internal'" class="oe_button_box" name="button_box">
+                            <button name="action_view_financing" 
+                                    type="object"
+                                    class="oe_stat_button"
+                                    icon="fa-dollar"
+                                    invisible="financing_count == 0">
+                                <field name="financing_count" widget="statinfo" string="Bills"/>
+                            </button>
+                        </div>
+                        <group invisible="financing_type != 'internal'">
+                            <button name="action_generate_interest_bill" 
+                                    string="Generate Interest Bill" 
+                                    type="object" 
+                                    class="oe_highlight"
+                                    invisible="financing_status != 'active' or financing_type != 'internal'"/>
+                            <button name="action_generate_backdated_bills" 
+                                    string="Generate Backdated Bills" 
+                                    type="object"
+                                    invisible="financing_status != 'active' or financing_type != 'internal'"/>
+                        </group>
+                        <field name="financing_ids" invisible="financing_type == 'none'">
+                            <tree create="false" edit="false">
+                                <field name="bill_date"/>
+                                <field name="interest_amount"/>
+                                <field name="bill_id"/>
+                                <field name="state"/>
+                            </tree>
+                        </field>
+                    </page>
+                </xpath>
+            </field>
+        </record>
+
+    </data>
+</odoo>

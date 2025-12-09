@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_vehicle_financing_user,vehicle.financing.user,model_vehicle_financing,base.group_user,1,1,1,1
+access_vehicle_financing_manager,vehicle.financing.manager,model_vehicle_financing,base.group_system,1,1,1,1

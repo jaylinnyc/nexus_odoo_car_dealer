@@ -34,21 +34,17 @@ Car Dealer Customizations
 
     # All your files — add every folder/file you have
     'data': [
-        # Security (add if you created any)
+        # Security
+        'security/ir.model.access.csv',
 
-        # Views
-        # 'views/reservation_sequence.xml',
+        # Data
         'data/appointment_data.xml',
+        'data/financing_cron.xml',
+        
+        # Views
         'views/test.xml',
-        'views/vehicle_show.xml'
-        # your existing website templates
-        # 'views/vehicle_views.xml',        # if you added vehicle model
-
-        # Reports / QWeb templates (if any)
-        # 'report/sale_report_templates.xml',
-
-        # Data (if you added demo/data)
-        # 'data/vehicle_data.xml',
+        'views/vehicle_show.xml',
+        'views/financing_views.xml',
     ],
 
     # Only if you created new models and want demo data
