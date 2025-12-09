@@ -24,7 +24,12 @@ Car Dealer Customizations
         'payment',
         'mail',
         'appointment',
-        'website_appointment_sale'
+        'website_appointment_sale',
+        'purchase',          # for vehicle purchase tracking
+        'purchase_stock',    # for purchase operations
+        'project',           # for analytic accounts (projects)
+        'analytic',          # for analytic accounting
+        'stock_landed_costs' # landed costs module
         # 'stock',           # uncomment if you added vehicle stock/lots
         # 'account',         # if you touch invoices
     ],

@@ -2,3 +2,4 @@
 from . import sale_order
 from . import product_template
 from . import calendar_event
+from . import purchase_order_line
