@@ -60,5 +60,6 @@ class ProductTemplate(models.Model):
         string='Interest Expense Account',
         domain="[('account_type', '=', 'expense')]",
         copy=False,
+        default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_interest_expense', raise_if_not_found=False),
         help='Account to use for recording interest expenses. If not set, will search for an interest expense account.'
     )
