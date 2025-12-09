@@ -169,8 +169,8 @@ class ProductTemplate(models.Model):
             'invoice_date': bill_date,
             'date': bill_date,
             'invoice_line_ids': [(0, 0, {
-                'name': _('Interest charge - %s') % bill_date.strftime('%B %Y'),
-                'description': _('Vehicle: %s\nPeriod: %s to %s\nDaily Rate: $%.2f × %d days') % (
+                'name': _('Interest charge - %s\nVehicle: %s\nPeriod: %s to %s\nDaily Rate: $%.2f × %d days') % (
+                    bill_date.strftime('%B %Y'),
                     self.name,
                     period_start.strftime('%m/%d/%Y'),
                     period_end.strftime('%m/%d/%Y'),
