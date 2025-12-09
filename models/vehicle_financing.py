@@ -103,7 +103,6 @@ class ProductTemplate(models.Model):
         # Priority: 1) Interest expense, 2) Financial costs, 3) Any expense account
         account = self.env['account.account'].search([
             ('account_type', '=', 'expense'),
-            ('company_id', '=', self.env.company.id),
             '|', '|',
             ('code', 'ilike', 'interest'),
             ('name', 'ilike', 'interest'),
@@ -114,7 +113,6 @@ class ProductTemplate(models.Model):
         if not account:
             account = self.env['account.account'].search([
                 ('account_type', '=', 'expense'),
-                ('company_id', '=', self.env.company.id),
             ], limit=1)
         
         if not account:
