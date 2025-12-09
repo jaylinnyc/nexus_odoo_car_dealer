@@ -14,28 +14,32 @@ class PurchaseOrderLine(models.Model):
         
         # Check if analytic account already exists
         if self.product_id.analytic_account_id:
-            return self.product_id.analytic_account_id
+            analytic_account = self.product_id.analytic_account_id
+        else:
+            # Create analytic account directly
+            analytic_account_vals = {
+                'name': self._get_vehicle_project_name(),
+                'company_id': self.company_id.id,
+            }
+            
+            # Try to use the default analytic plan if available
+            try:
+                default_plan = self.env.ref('analytic.analytic_plan_projects', raise_if_not_found=False)
+                if default_plan:
+                    analytic_account_vals['plan_id'] = default_plan.id
+            except:
+                pass
+            
+            analytic_account = self.env['account.analytic.account'].create(analytic_account_vals)
+            
+            # Link the analytic account to the product
+            self.product_id.write({
+                'analytic_account_id': analytic_account.id,
+            })
         
-        # Create analytic account directly
-        analytic_account_vals = {
-            'name': self._get_vehicle_project_name(),
-            'company_id': self.company_id.id,
-        }
-        
-        # Try to use the default analytic plan if available
-        try:
-            default_plan = self.env.ref('analytic.analytic_plan_projects', raise_if_not_found=False)
-            if default_plan:
-                analytic_account_vals['plan_id'] = default_plan.id
-        except:
-            pass
-        
-        analytic_account = self.env['account.analytic.account'].create(analytic_account_vals)
-        
-        # Link the analytic account to the product
-        self.product_id.write({
-            'analytic_account_id': analytic_account.id,
-        })
+        # Assign 100% distribution to this purchase order line
+        if analytic_account:
+            self.analytic_distribution = {str(analytic_account.id): 100}
         
         return analytic_account
     
