@@ -58,11 +58,25 @@ class VehicleFinancing(models.Model):
                 'Please reset the following bills to draft first:\n%s'
             ) % ', '.join(posted_bills.mapped('name')))
         
+        # Get affected products before deletion
+        affected_products = self.mapped('product_id')
+        
         # Delete draft bills
         bills_to_delete = self.mapped('bill_id')
         result = super().unlink()
         if bills_to_delete:
             bills_to_delete.unlink()
+        
+        # Recalculate last_interest_bill_date for affected products
+        for product in affected_products:
+            # Find the most recent remaining bill date
+            latest_financing = self.search(
+                [('product_id', '=', product.id)],
+                order='bill_date desc',
+                limit=1
+            )
+            product.last_interest_bill_date = latest_financing.bill_date if latest_financing else False
+        
         return result
 
 
