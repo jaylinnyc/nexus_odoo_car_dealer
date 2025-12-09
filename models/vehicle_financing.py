@@ -50,7 +50,16 @@ class VehicleFinancing(models.Model):
 
     def unlink(self):
         """Delete associated bills when financing record is deleted"""
-        bills_to_delete = self.mapped('bill_id').filtered(lambda b: b.state == 'draft')
+        # Check if any bills are posted
+        posted_bills = self.mapped('bill_id').filtered(lambda b: b.state == 'posted')
+        if posted_bills:
+            raise UserError(_(
+                'Cannot delete financing records with posted bills. '
+                'Please reset the following bills to draft first:\n%s'
+            ) % ', '.join(posted_bills.mapped('name')))
+        
+        # Delete draft bills
+        bills_to_delete = self.mapped('bill_id')
         result = super().unlink()
         if bills_to_delete:
             bills_to_delete.unlink()
