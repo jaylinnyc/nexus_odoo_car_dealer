@@ -1,7 +1,7 @@
 {
     'name': 'Car Dealer Customizations',
     'summary': 'Car dealer enhancements: first order line field, vehicle management, etc.',
-    'version': '1.0.1',
+    'version': '1.0.2',
     'license': 'LGPL-3',
     'category': 'Sales/Sales',          # or 'Automotive' if you prefer
     'description': """
@@ -38,6 +38,7 @@ Car Dealer Customizations
         'security/ir.model.access.csv',
 
         # Data
+        'data/account_data.xml',
         'data/appointment_data.xml',
         'data/financing_cron.xml',
         

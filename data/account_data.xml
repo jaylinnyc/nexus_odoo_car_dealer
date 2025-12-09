@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+        <!-- Interest Expense Account -->
+        <record id="account_interest_expense" model="account.account">
+            <field name="code">670000</field>
+            <field name="name">Interest Expense - Vehicle Financing</field>
+            <field name="account_type">expense</field>
+            <field name="reconcile">False</field>
+        </record>
+
+        <!-- Set as default on product template via ir.default -->
+        <function model="ir.default" name="set">
+            <value>product.template</value>
+            <value>financing_expense_account_id</value>
+            <value eval="ref('account_interest_expense')"/>
+        </function>
+    </data>
+</odoo>
