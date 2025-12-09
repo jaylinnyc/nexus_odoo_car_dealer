@@ -99,15 +99,19 @@ class ProductTemplate(models.Model):
         # Calculate monthly interest (simple interest: Principal * Rate / 12)
         monthly_interest = (self.financing_amount * self.financing_rate / 100) / 12
         
-        # Try to find the best matching expense account for interest
-        # Priority: 1) Interest expense, 2) Financial costs, 3) Any expense account
-        account = self.env['account.account'].search([
-            ('account_type', '=', 'expense'),
-            '|', '|',
-            ('code', 'ilike', 'interest'),
-            ('name', 'ilike', 'interest'),
-            ('name', 'ilike', 'financial')
-        ], limit=1)
+        # Get the expense account to use
+        # Priority: 1) User-specified account, 2) Interest expense account, 3) Financial costs, 4) Any expense account
+        account = self.financing_expense_account_id
+        
+        if not account:
+            # Try to find the best matching expense account for interest
+            account = self.env['account.account'].search([
+                ('account_type', '=', 'expense'),
+                '|', '|',
+                ('code', 'ilike', 'interest'),
+                ('name', 'ilike', 'interest'),
+                ('name', 'ilike', 'financial')
+            ], limit=1)
         
         # Fallback to any expense account
         if not account:

@@ -55,3 +55,10 @@ class ProductTemplate(models.Model):
         readonly=True,
         help='Date of the last generated interest bill'
     )
+    financing_expense_account_id = fields.Many2one(
+        'account.account',
+        string='Interest Expense Account',
+        domain="[('account_type', '=', 'expense')]",
+        copy=False,
+        help='Account to use for recording interest expenses. If not set, will search for an interest expense account.'
+    )

@@ -52,6 +52,7 @@
                                 <field name="financing_amount" invisible="financing_type == 'none'" required="financing_type != 'none'"/>
                                 <field name="financing_rate" invisible="financing_type == 'none'" required="financing_type != 'none'"/>
                                 <field name="financing_partner_id" invisible="financing_type == 'none'" required="financing_type == 'internal'"/>
+                                <field name="financing_expense_account_id" invisible="financing_type != 'internal'"/>
                             </group>
                             <group string="Financing Status">
                                 <field name="financing_status" invisible="financing_type == 'none'"/>
