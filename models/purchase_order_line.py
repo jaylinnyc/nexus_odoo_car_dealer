@@ -16,21 +16,28 @@ class PurchaseOrderLine(models.Model):
         if self.product_id.analytic_account_id:
             return self.product_id.analytic_account_id
         
-        # Create the project/analytic account
-        project_vals = {
+        # Create analytic account directly
+        analytic_account_vals = {
             'name': self._get_vehicle_project_name(),
             'company_id': self.company_id.id,
-            'active': True,
         }
         
-        project = self.env['project.project'].create(project_vals)
+        # Try to use the default analytic plan if available
+        try:
+            default_plan = self.env.ref('analytic.analytic_plan_projects', raise_if_not_found=False)
+            if default_plan:
+                analytic_account_vals['plan_id'] = default_plan.id
+        except:
+            pass
+        
+        analytic_account = self.env['account.analytic.account'].create(analytic_account_vals)
         
         # Link the analytic account to the product
         self.product_id.write({
-            'analytic_account_id': project.analytic_account_id.id,
+            'analytic_account_id': analytic_account.id,
         })
         
-        return project.analytic_account_id
+        return analytic_account
     
     def _get_vehicle_project_name(self):
         """Generate a descriptive name for the vehicle project."""
