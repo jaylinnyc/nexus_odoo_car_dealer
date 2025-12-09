@@ -77,7 +77,7 @@
                                     invisible="financing_status != 'active' or financing_type != 'internal' or not financing_start_date"/>
                         </group>
                         <field name="financing_ids" invisible="financing_type == 'none'">
-                            <list create="false" edit="false">
+                            <list create="false" edit="false" delete="state == 'draft'">
                                 <field name="bill_date"/>
                                 <field name="interest_amount"/>
                                 <field name="bill_id"/>
