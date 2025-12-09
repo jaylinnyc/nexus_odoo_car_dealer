@@ -1,16 +1,16 @@
 <odoo>
     <data>
-        <!-- Vehicle Financing Tree View -->
+        <!-- Vehicle Financing List View -->
         <record id="view_vehicle_financing_tree" model="ir.ui.view">
-            <field name="name">vehicle.financing.tree</field>
+            <field name="name">vehicle.financing.list</field>
             <field name="model">vehicle.financing</field>
             <field name="arch" type="xml">
-                <tree string="Financing History" create="false" edit="false">
+                <list string="Financing History" create="false" edit="false">
                     <field name="bill_date"/>
                     <field name="interest_amount"/>
                     <field name="bill_id"/>
                     <field name="state"/>
-                </tree>
+                </list>
             </field>
         </record>
 
@@ -80,12 +80,12 @@
                                     invisible="financing_status != 'active' or financing_type != 'internal'"/>
                         </group>
                         <field name="financing_ids" invisible="financing_type == 'none'">
-                            <tree create="false" edit="false">
+                            <list create="false" edit="false">
                                 <field name="bill_date"/>
                                 <field name="interest_amount"/>
                                 <field name="bill_id"/>
                                 <field name="state"/>
-                            </tree>
+                            </list>
                         </field>
                     </page>
                 </xpath>
