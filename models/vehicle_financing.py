@@ -92,21 +92,6 @@ class ProductTemplate(models.Model):
         
         return self._create_interest_bill(bill_date)
 
-    def action_generate_backdated_bills(self):
-        """Open wizard to generate multiple backdated interest bills."""
-        self.ensure_one()
-        
-        return {
-            'name': _('Generate Backdated Interest Bills'),
-            'type': 'ir.actions.act_window',
-            'res_model': 'vehicle.financing.wizard',
-            'view_mode': 'form',
-            'target': 'new',
-            'context': {
-                'default_product_id': self.id,
-            }
-        }
-
     def _create_interest_bill(self, bill_date):
         """Create an interest bill for the given date."""
         self.ensure_one()
