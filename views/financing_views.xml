@@ -56,7 +56,7 @@
                             </group>
                             <group string="Financing Status">
                                 <field name="financing_status" invisible="financing_type == 'none'"/>
-                                <field name="financing_start_date" invisible="financing_type == 'none'"/>
+                                <field name="financing_start_date" invisible="financing_type == 'none'" readonly="financing_count > 0"/>
                                 <field name="last_interest_bill_date" invisible="financing_type == 'none'"/>
                             </group>
                         </group>
@@ -74,7 +74,7 @@
                                     string="Generate Interest Bill" 
                                     type="object" 
                                     class="oe_highlight"
-                                    invisible="financing_status != 'active' or financing_type != 'internal'"/>
+                                    invisible="financing_status != 'active' or financing_type != 'internal' or not financing_start_date"/>
                         </group>
                         <field name="financing_ids" invisible="financing_type == 'none'">
                             <list create="false" edit="false">
