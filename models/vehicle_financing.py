@@ -27,7 +27,8 @@ class VehicleFinancing(models.Model):
     bill_id = fields.Many2one(
         'account.move',
         string='Vendor Bill',
-        readonly=True
+        readonly=True,
+        ondelete='cascade'
     )
     currency_id = fields.Many2one(
         'res.currency',
@@ -46,6 +47,14 @@ class VehicleFinancing(models.Model):
                 rec.state = 'posted' if rec.bill_id.state == 'posted' else 'draft'
             else:
                 rec.state = 'draft'
+
+    def unlink(self):
+        """Delete associated bills when financing record is deleted"""
+        bills_to_delete = self.mapped('bill_id').filtered(lambda b: b.state == 'draft')
+        result = super().unlink()
+        if bills_to_delete:
+            bills_to_delete.unlink()
+        return result
 
 
 class ProductTemplate(models.Model):

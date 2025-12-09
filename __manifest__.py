@@ -1,7 +1,7 @@
 {
     'name': 'Car Dealer Customizations',
     'summary': 'Car dealer enhancements: first order line field, vehicle management, etc.',
-    'version': '1.0.2',
+    'version': '1.0.3',
     'license': 'LGPL-3',
     'category': 'Sales/Sales',          # or 'Automotive' if you prefer
     'description': """
