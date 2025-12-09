@@ -80,3 +80,17 @@ class ProductTemplate(models.Model):
                 ('order_id.state', 'in', ['purchase', 'done'])
             ], limit=1)
             product.has_purchase_order = bool(po_lines)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Override create to automatically set internal reference from VIN"""
+        for vals in vals_list:
+            if vals.get('vin') and not vals.get('default_code'):
+                vals['default_code'] = vals['vin']
+        return super(ProductTemplate, self).create(vals_list)
+
+    def write(self, vals):
+        """Override write to automatically set internal reference from VIN"""
+        if vals.get('vin') and not vals.get('default_code'):
+            vals['default_code'] = vals['vin']
+        return super(ProductTemplate, self).write(vals)
