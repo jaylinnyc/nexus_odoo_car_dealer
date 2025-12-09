@@ -102,9 +102,11 @@ class ProductTemplate(models.Model):
         
         # Calculate next bill date
         if self.last_interest_bill_date:
-            bill_date = self.last_interest_bill_date + relativedelta(months=1)
+            # For subsequent bills, use the last day of the next month
+            bill_date = self.last_interest_bill_date + relativedelta(months=1, day=31)
         elif self.financing_start_date:
-            bill_date = self.financing_start_date
+            # For the first bill, use the last day of the financing start month
+            bill_date = self.financing_start_date + relativedelta(day=31)
         else:
             raise UserError(_('Please set a financing start date.'))
         
@@ -167,9 +169,9 @@ class ProductTemplate(models.Model):
             'invoice_date': bill_date,
             'date': bill_date,
             'invoice_line_ids': [(0, 0, {
-                'name': _('Interest charge for %s - %s\nPeriod: %s to %s\nDaily Rate: $%.2f × %d days') % (
+                'name': _('Interest charge - %s') % bill_date.strftime('%B %Y'),
+                'description': _('Vehicle: %s\nPeriod: %s to %s\nDaily Rate: $%.2f × %d days') % (
                     self.name,
-                    bill_date.strftime('%B %Y'),
                     period_start.strftime('%m/%d/%Y'),
                     period_end.strftime('%m/%d/%Y'),
                     daily_rate,
