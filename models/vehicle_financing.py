@@ -137,7 +137,20 @@ class ProductTemplate(models.Model):
         # Get the liability account
         liability_account = self.financing_liability_account_id
         if not liability_account:
-            raise UserError(_('Please configure the Floor Plan Payable account.'))
+            # Try to find the Floor Plan Payable account
+            liability_account = self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False)
+        
+        if not liability_account:
+            # Search for any current liability account with "floor plan" in the name
+            liability_account = self.env['account.account'].search([
+                ('account_type', 'in', ['liability_current', 'liability_non_current']),
+                '|',
+                ('name', 'ilike', 'floor plan'),
+                ('name', 'ilike', 'payable')
+            ], limit=1)
+        
+        if not liability_account:
+            raise UserError(_('Please configure the Floor Plan Payable account in the Financing tab or create an account with account type "Current Liabilities".'))
         
         # Get the default journal for payments
         journal = self.env['account.journal'].search([
