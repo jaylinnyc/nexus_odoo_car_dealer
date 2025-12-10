@@ -27,6 +27,11 @@
                 <div class="alert alert-info" role="alert">
                     <strong>Auto-Payment:</strong> The top-up amount will be automatically distributed across unpaid bills in chronological order (earliest first).
                 </div>
+                <div class="alert alert-warning" role="alert" invisible="not has_posted_interest_bill">
+                    <field name="has_posted_interest_bill" invisible="1"/>
+                    <strong>Interest Adjustment Required:</strong><br/>
+                    <field name="interest_bill_warning" readonly="1" nolabel="1"/>
+                </div>
                 <footer>
                     <button string="Apply Top-Up" name="action_apply_topup" type="object" class="btn-primary"/>
                     <button string="Cancel" class="btn-secondary" special="cancel"/>

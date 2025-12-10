@@ -804,6 +804,15 @@ class VehicleFinancingTopupWizard(models.TransientModel):
         currency_field='currency_id',
         compute='_compute_unpaid_summary'
     )
+    has_posted_interest_bill = fields.Boolean(
+        string='Has Posted Interest Bill',
+        compute='_compute_interest_bill_warning',
+        help='Indicates if there is already a posted interest bill for the top-up period'
+    )
+    interest_bill_warning = fields.Text(
+        string='Warning',
+        compute='_compute_interest_bill_warning'
+    )
 
     @api.depends('product_id')
     def _compute_unpaid_summary(self):
@@ -820,6 +829,36 @@ class VehicleFinancingTopupWizard(models.TransientModel):
             else:
                 wizard.unpaid_bill_count = 0
                 wizard.total_unpaid_amount = 0
+    
+    @api.depends('product_id', 'topup_date')
+    def _compute_interest_bill_warning(self):
+        for wizard in self:
+            if wizard.product_id and wizard.topup_date:
+                # Check if there's already an interest bill for this period
+                topup_period_start = wizard.topup_date.replace(day=1)
+                topup_period_end = (wizard.topup_date + relativedelta(day=31))
+                
+                existing_bills = self.env['vehicle.financing'].search([
+                    ('product_id', '=', wizard.product_id.id),
+                    ('bill_date', '>=', topup_period_start),
+                    ('bill_date', '<=', topup_period_end),
+                    ('bill_id.state', '=', 'posted'),
+                ], limit=1)
+                
+                if existing_bills:
+                    wizard.has_posted_interest_bill = True
+                    days_remaining = (topup_period_end - wizard.topup_date).days + 1
+                    wizard.interest_bill_warning = _(
+                        'Note: An interest bill already exists for %s. '
+                        'A supplemental interest bill will be automatically generated '
+                        'to charge interest on this top-up amount for the remaining %d days of the period.'
+                    ) % (wizard.topup_date.strftime('%B %Y'), days_remaining)
+                else:
+                    wizard.has_posted_interest_bill = False
+                    wizard.interest_bill_warning = False
+            else:
+                wizard.has_posted_interest_bill = False
+                wizard.interest_bill_warning = False
 
     def action_apply_topup(self):
         """Create journal entry for top-up financing and automatically distribute across unpaid bills.
@@ -978,6 +1017,10 @@ class VehicleFinancingTopupWizard(models.TransientModel):
             'financing_balance': new_balance,
         })
         
+        # Check if top-up occurred in an already-billed period
+        # This handles the edge case where interest was already charged on the old balance
+        self._handle_topup_interest_adjustment(product)
+        
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'account.move',
@@ -985,3 +1028,188 @@ class VehicleFinancingTopupWizard(models.TransientModel):
             'view_mode': 'form',
             'target': 'current',
         }
+    
+    def _handle_topup_interest_adjustment(self, product):
+        """Handle interest adjustment when top-up occurs in an already-billed period.
+        
+        Edge cases handled:
+        1. Top-up in month with posted interest bill -> Generate supplemental interest bill
+        2. Top-up in month with draft interest bill -> Delete draft and let next run regenerate
+        3. Multiple top-ups in same month -> Each generates its own adjustment
+        """
+        # Find if there's an interest bill for the period containing the top-up date
+        topup_period_start = self.topup_date.replace(day=1)
+        topup_period_end = (self.topup_date + relativedelta(day=31))
+        
+        # Look for existing interest bills that cover this period
+        existing_bills = self.env['vehicle.financing'].search([
+            ('product_id', '=', product.id),
+            ('bill_date', '>=', topup_period_start),
+            ('bill_date', '<=', topup_period_end),
+        ], order='bill_date desc')
+        
+        if not existing_bills:
+            # No interest bill exists for this period yet - normal case, no action needed
+            return
+        
+        # Check each bill to see if it needs adjustment
+        for financing_record in existing_bills:
+            bill = financing_record.bill_id
+            
+            if bill.state == 'draft':
+                # Draft bill exists - delete it so it can be regenerated with correct time-weighted interest
+                bill.message_post(
+                    body=Markup('<b>Interest Bill Cancelled</b><br/>'
+                           'Reason: Top-up occurred on %s during this billing period<br/>'
+                           'This bill will be regenerated with time-weighted interest calculation') % (
+                        self.topup_date.strftime('%m/%d/%Y')
+                    ),
+                    subject=_('Bill Cancelled - Top-Up Adjustment')
+                )
+                financing_record.unlink()
+                bill.button_draft()
+                bill.unlink()
+                
+                # Update last_interest_bill_date to force regeneration
+                # Find the previous posted bill
+                prev_bill = self.env['vehicle.financing'].search([
+                    ('product_id', '=', product.id),
+                    ('bill_id.state', '=', 'posted'),
+                    ('bill_date', '<', financing_record.bill_date)
+                ], order='bill_date desc', limit=1)
+                
+                if prev_bill:
+                    product.write({'last_interest_bill_date': prev_bill.bill_date})
+                else:
+                    product.write({'last_interest_bill_date': False})
+                
+            elif bill.state == 'posted':
+                # Posted bill exists - generate supplemental interest for the additional amount
+                # Calculate how many days remain in the period after the top-up
+                days_remaining = (topup_period_end - self.topup_date).days + 1
+                
+                if days_remaining <= 0:
+                    # Top-up was on the last day of the month, no adjustment needed
+                    continue
+                
+                # Calculate supplemental interest on the top-up amount for remaining days
+                annual_rate = product.financing_rate
+                daily_interest = (self.topup_amount * annual_rate / 100) / 365
+                supplemental_interest = daily_interest * days_remaining
+                
+                if supplemental_interest <= 0:
+                    continue
+                
+                # Generate supplemental interest bill
+                self._create_supplemental_interest_bill(
+                    product=product,
+                    original_bill_date=financing_record.bill_date,
+                    topup_amount=self.topup_amount,
+                    topup_date=self.topup_date,
+                    period_end=topup_period_end,
+                    supplemental_interest=supplemental_interest,
+                    days_charged=days_remaining
+                )
+    
+    def _create_supplemental_interest_bill(self, product, original_bill_date, topup_amount, 
+                                          topup_date, period_end, supplemental_interest, days_charged):
+        """Create a supplemental interest bill for top-up that occurred mid-period."""
+        
+        # Get accounts
+        expense_account = product.financing_expense_account_id
+        if not expense_account:
+            expense_account = self.env['account.account'].search([
+                ('account_type', '=', 'expense'),
+                '|', '|',
+                ('code', 'ilike', 'interest'),
+                ('name', 'ilike', 'interest'),
+                ('name', 'ilike', 'financial')
+            ], limit=1)
+        
+        if not expense_account:
+            expense_account = self.env['account.account'].search([
+                ('account_type', '=', 'expense'),
+            ], limit=1)
+        
+        liability_account = product.financing_liability_account_id
+        if not liability_account:
+            liability_account = self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False)
+        
+        journal = self.env['account.journal'].search([
+            ('type', '=', 'general'),
+            ('company_id', '=', self.env.company.id)
+        ], limit=1)
+        
+        # Prepare analytic distribution
+        analytic_dist = {str(product.analytic_account_id.id): 100.0} if product.analytic_account_id else {}
+        
+        # Create description
+        interest_description = _('Supplemental Interest - %s\nVehicle: %s\nOriginal Bill: %s\n\nTop-Up Adjustment:\nTop-Up Amount: %s on %s\nAdditional Interest: $%s @ %.2f%% for %d days\n(From %s to %s)') % (
+            original_bill_date.strftime('%B %Y'),
+            product.name,
+            original_bill_date.strftime('%m/%d/%Y'),
+            topup_amount,
+            topup_date.strftime('%m/%d/%Y'),
+            '{:,.2f}'.format(topup_amount),
+            product.financing_rate,
+            days_charged,
+            topup_date.strftime('%m/%d/%Y'),
+            period_end.strftime('%m/%d/%Y')
+        )
+        
+        # Create journal entry
+        journal_entry_vals = {
+            'move_type': 'entry',
+            'journal_id': journal.id,
+            'date': original_bill_date,  # Use same date as original bill
+            'ref': _('Supplemental Interest - %s - %s') % (product.name, original_bill_date.strftime('%B %Y')),
+            'line_ids': [
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': expense_account.id,
+                    'debit': supplemental_interest,
+                    'credit': 0,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': liability_account.id,
+                    'partner_id': product.financing_partner_id.id,
+                    'debit': 0,
+                    'credit': supplemental_interest,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+            ],
+        }
+        
+        bill = self.env['account.move'].create(journal_entry_vals)
+        bill.action_post()
+        
+        # Create financing record
+        self.env['vehicle.financing'].create({
+            'product_id': product.id,
+            'bill_date': original_bill_date,
+            'interest_amount': supplemental_interest,
+            'bill_id': bill.id,
+        })
+        
+        # Update financing balance
+        product.write({
+            'financing_balance': product.financing_balance + supplemental_interest,
+        })
+        
+        # Add message to product
+        product.message_post(
+            body=Markup('<b>Supplemental Interest Bill Generated</b><br/>'
+                   'Amount: %s<br/>'
+                   'Reason: Top-up of %s on %s<br/>'
+                   'Days Charged: %d<br/>'
+                   'Journal Entry: %s') % (
+                supplemental_interest,
+                topup_amount,
+                topup_date.strftime('%m/%d/%Y'),
+                days_charged,
+                bill.name
+            ),
+            subject=_('Supplemental Interest')
+        )
