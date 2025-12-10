@@ -5,7 +5,7 @@
         <field name="name">vehicle.financing.transaction.tree</field>
         <field name="model">vehicle.financing.transaction</field>
         <field name="arch" type="xml">
-            <tree string="Financing Transactions" create="false" edit="false" delete="false" 
+            <list string="Financing Transactions" create="false" edit="false" delete="false" 
                   decoration-success="transaction_type == 'initial'"
                   decoration-info="transaction_type == 'topup'"
                   decoration-warning="transaction_type == 'paydown'">
@@ -16,7 +16,7 @@
                 <field name="vendor_bill_id" optional="show"/>
                 <field name="journal_entry_id" optional="show"/>
                 <field name="notes" optional="hide"/>
-            </tree>
+            </list>
         </field>
     </record>
 

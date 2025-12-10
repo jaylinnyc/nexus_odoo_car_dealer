@@ -229,7 +229,7 @@ class ProductTemplate(models.Model):
             'name': _('Financing Transactions - %s') % self.name,
             'type': 'ir.actions.act_window',
             'res_model': 'vehicle.financing.transaction',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('product_id', '=', self.id)],
             'context': {'default_product_id': self.id},
         }

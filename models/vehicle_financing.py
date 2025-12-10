@@ -725,7 +725,7 @@ class ProductTemplate(models.Model):
             'name': _('Financing History - %s') % self.name,
             'type': 'ir.actions.act_window',
             'res_model': 'vehicle.financing',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('product_id', '=', self.id)],
             'context': {'default_product_id': self.id},
         }
