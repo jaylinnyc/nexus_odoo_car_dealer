@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import api, fields, models, _
 
 
 class ProductTemplate(models.Model):
@@ -84,6 +84,11 @@ class ProductTemplate(models.Model):
         copy=False,
         readonly=True,
         help='Journal entry that recorded the floor plan financing'
+    )
+    financing_transaction_count = fields.Integer(
+        string='Transaction Count',
+        compute='_compute_financing_transaction_count',
+        help='Number of financing transactions (initial, top-ups, paydowns)'
     )
     has_purchase_order = fields.Boolean(
         string='Has Purchase Order',
@@ -209,6 +214,25 @@ class ProductTemplate(models.Model):
                 product.vendor_bill_amount_residual = 0
                 product.total_bills_amount = 0
                 product.total_bills_residual = 0
+
+    @api.depends('financing_transaction_ids')
+    def _compute_financing_transaction_count(self):
+        """Count financing transactions for this vehicle"""
+        for product in self:
+            product.financing_transaction_count = len(product.financing_transaction_ids)
+    
+    def action_view_financing_transactions(self):
+        """View financing transaction history for this vehicle."""
+        self.ensure_one()
+        
+        return {
+            'name': _('Financing Transactions - %s') % self.name,
+            'type': 'ir.actions.act_window',
+            'res_model': 'vehicle.financing.transaction',
+            'view_mode': 'tree,form',
+            'domain': [('product_id', '=', self.id)],
+            'context': {'default_product_id': self.id},
+        }
 
     @api.model_create_multi
     def create(self, vals_list):

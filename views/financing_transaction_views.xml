@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Financing Transaction Tree View -->
+    <record id="view_vehicle_financing_transaction_tree" model="ir.ui.view">
+        <field name="name">vehicle.financing.transaction.tree</field>
+        <field name="model">vehicle.financing.transaction</field>
+        <field name="arch" type="xml">
+            <tree string="Financing Transactions" create="false" edit="false" delete="false" 
+                  decoration-success="transaction_type == 'initial'"
+                  decoration-info="transaction_type == 'topup'"
+                  decoration-warning="transaction_type == 'paydown'">
+                <field name="transaction_date"/>
+                <field name="transaction_type"/>
+                <field name="amount" widget="monetary" sum="Total Changes"/>
+                <field name="balance_after" widget="monetary"/>
+                <field name="vendor_bill_id" optional="show"/>
+                <field name="journal_entry_id" optional="show"/>
+                <field name="notes" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Financing Transaction Form View -->
+    <record id="view_vehicle_financing_transaction_form" model="ir.ui.view">
+        <field name="name">vehicle.financing.transaction.form</field>
+        <field name="model">vehicle.financing.transaction</field>
+        <field name="arch" type="xml">
+            <form string="Financing Transaction" create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="product_id" readonly="1"/>
+                            <field name="transaction_date" readonly="1"/>
+                            <field name="transaction_type" readonly="1"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group>
+                            <field name="amount" widget="monetary" readonly="1"/>
+                            <field name="balance_after" widget="monetary" readonly="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group>
+                            <field name="vendor_bill_id" readonly="1"/>
+                            <field name="journal_entry_id" readonly="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="notes" readonly="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Financing Transaction Search View -->
+    <record id="view_vehicle_financing_transaction_search" model="ir.ui.view">
+        <field name="name">vehicle.financing.transaction.search</field>
+        <field name="model">vehicle.financing.transaction</field>
+        <field name="arch" type="xml">
+            <search string="Financing Transactions">
+                <field name="product_id"/>
+                <field name="transaction_date"/>
+                <field name="transaction_type"/>
+                <field name="vendor_bill_id"/>
+                <filter string="Initial Financing" name="filter_initial" 
+                        domain="[('transaction_type', '=', 'initial')]"/>
+                <filter string="Top-Ups" name="filter_topup" 
+                        domain="[('transaction_type', '=', 'topup')]"/>
+                <filter string="Pay Downs" name="filter_paydown" 
+                        domain="[('transaction_type', '=', 'paydown')]"/>
+                <separator/>
+                <filter string="This Month" name="filter_this_month" 
+                        domain="[('transaction_date', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                ('transaction_date', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Last 3 Months" name="filter_last_3_months" 
+                        domain="[('transaction_date', '&gt;=', (context_today() - relativedelta(months=3)).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Vehicle" name="group_product" context="{'group_by': 'product_id'}"/>
+                    <filter string="Type" name="group_type" context="{'group_by': 'transaction_type'}"/>
+                    <filter string="Date" name="group_date" context="{'group_by': 'transaction_date'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+</odoo>
