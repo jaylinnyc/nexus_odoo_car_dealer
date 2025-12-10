@@ -63,11 +63,60 @@ class ProductTemplate(models.Model):
         default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_interest_expense', raise_if_not_found=False),
         help='Account to use for recording interest expenses. If not set, will search for an interest expense account.'
     )
+    financing_liability_account_id = fields.Many2one(
+        'account.account',
+        string='Floor Plan Payable Account',
+        domain="[('account_type', 'in', ['liability_current', 'liability_non_current'])]",
+        copy=False,
+        default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False),
+        help='Liability account for floor plan financing. This account tracks the amount owed to the financing partner.'
+    )
+    financing_balance = fields.Monetary(
+        string='Floor Plan Balance',
+        currency_field='currency_id',
+        copy=False,
+        readonly=True,
+        help='Current outstanding balance on the floor plan loan'
+    )
+    financing_journal_entry_id = fields.Many2one(
+        'account.move',
+        string='Financing Journal Entry',
+        copy=False,
+        readonly=True,
+        help='Journal entry that recorded the floor plan financing'
+    )
     has_purchase_order = fields.Boolean(
         string='Has Purchase Order',
         compute='_compute_has_purchase_order',
         store=False,
         help='Whether this product has a confirmed purchase order'
+    )
+    has_vendor_bill = fields.Boolean(
+        string='Has Vendor Bill',
+        compute='_compute_vendor_bill_info',
+        store=False,
+        help='Whether this product has a posted vendor bill'
+    )
+    vendor_bill_id = fields.Many2one(
+        'account.move',
+        string='Vendor Bill',
+        compute='_compute_vendor_bill_info',
+        store=False,
+        help='The vendor bill for this vehicle purchase'
+    )
+    vendor_bill_amount = fields.Monetary(
+        string='Vendor Bill Amount',
+        currency_field='currency_id',
+        compute='_compute_vendor_bill_info',
+        store=False,
+        help='Total amount of the vendor bill'
+    )
+    vendor_bill_amount_residual = fields.Monetary(
+        string='Amount Due',
+        currency_field='currency_id',
+        compute='_compute_vendor_bill_info',
+        store=False,
+        help='Outstanding amount on the vendor bill'
     )
 
     @api.depends('product_variant_ids')
@@ -80,6 +129,41 @@ class ProductTemplate(models.Model):
                 ('order_id.state', 'in', ['purchase', 'done'])
             ], limit=1)
             product.has_purchase_order = bool(po_lines)
+
+    @api.depends('product_variant_ids')
+    def _compute_vendor_bill_info(self):
+        """Find and display vendor bill information for this vehicle"""
+        for product in self:
+            # Find purchase order lines for this product
+            po_lines = self.env['purchase.order.line'].search([
+                ('product_id', 'in', product.product_variant_ids.ids),
+                ('order_id.state', 'in', ['purchase', 'done'])
+            ], limit=1)
+            
+            if po_lines:
+                # Find the vendor bill associated with this purchase
+                vendor_bill = self.env['account.move'].search([
+                    ('partner_id', '=', po_lines.order_id.partner_id.id),
+                    ('move_type', '=', 'in_invoice'),
+                    ('state', '=', 'posted'),
+                    ('line_ids.purchase_line_id', 'in', po_lines.ids)
+                ], limit=1)
+                
+                if vendor_bill:
+                    product.has_vendor_bill = True
+                    product.vendor_bill_id = vendor_bill.id
+                    product.vendor_bill_amount = vendor_bill.amount_total
+                    product.vendor_bill_amount_residual = vendor_bill.amount_residual
+                else:
+                    product.has_vendor_bill = False
+                    product.vendor_bill_id = False
+                    product.vendor_bill_amount = 0
+                    product.vendor_bill_amount_residual = 0
+            else:
+                product.has_vendor_bill = False
+                product.vendor_bill_id = False
+                product.vendor_bill_amount = 0
+                product.vendor_bill_amount_residual = 0
 
     @api.model_create_multi
     def create(self, vals_list):

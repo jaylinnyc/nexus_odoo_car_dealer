@@ -45,7 +45,16 @@
             <field name="arch" type="xml">
                 <!-- Add Financing tab after Sales tab -->
                 <xpath expr="//notebook" position="inside">
-                    <page string="Financing" name="financing" invisible="not has_purchase_order">
+                    <page string="Financing" name="financing" invisible="not has_vendor_bill">
+                        <group string="Vendor Bill Information" invisible="not vendor_bill_id">
+                            <group>
+                                <field name="vendor_bill_id" readonly="1"/>
+                                <field name="vendor_bill_amount" readonly="1"/>
+                            </group>
+                            <group>
+                                <field name="vendor_bill_amount_residual" readonly="1"/>
+                            </group>
+                        </group>
                         <group>
                             <group string="Financing Information">
                                 <field name="financing_type"/>
@@ -53,11 +62,14 @@
                                 <field name="financing_rate" invisible="financing_type == 'none'" required="financing_type != 'none'"/>
                                 <field name="financing_partner_id" invisible="financing_type == 'none'" required="financing_type == 'internal'"/>
                                 <field name="financing_expense_account_id" invisible="financing_type != 'internal'"/>
+                                <field name="financing_liability_account_id" invisible="financing_type != 'internal'"/>
                             </group>
                             <group string="Financing Status">
                                 <field name="financing_status" invisible="financing_type == 'none'"/>
                                 <field name="financing_start_date" invisible="financing_type == 'none'" readonly="financing_count > 0"/>
+                                <field name="financing_balance" invisible="financing_type != 'internal'"/>
                                 <field name="last_interest_bill_date" invisible="financing_type == 'none'"/>
+                                <field name="financing_journal_entry_id" invisible="financing_type != 'internal'"/>
                             </group>
                         </group>
                         <div invisible="financing_type != 'internal'" class="oe_button_box" name="button_box">
@@ -70,11 +82,17 @@
                             </button>
                         </div>
                         <group invisible="financing_type != 'internal'">
+                            <button name="action_setup_floor_plan_financing" 
+                                    string="Setup Floor Plan Financing" 
+                                    type="object" 
+                                    class="oe_highlight"
+                                    invisible="financing_journal_entry_id or financing_type != 'internal'"
+                                    confirm="This will create a journal entry to pay the vendor bill and record the floor plan liability. Continue?"/>
                             <button name="action_generate_interest_bill" 
                                     string="Generate Interest Bill" 
                                     type="object" 
                                     class="oe_highlight"
-                                    invisible="financing_status != 'active' or financing_type != 'internal' or not financing_start_date"/>
+                                    invisible="financing_status != 'active' or financing_type != 'internal' or not financing_start_date or not financing_journal_entry_id"/>
                         </group>
                         <field name="financing_ids" invisible="financing_type == 'none'">
                             <list create="false" edit="false" delete="state == 'draft'">

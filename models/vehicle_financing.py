@@ -98,6 +98,113 @@ class ProductTemplate(models.Model):
         for product in self:
             product.financing_count = len(product.financing_ids)
 
+    def action_setup_floor_plan_financing(self):
+        """Create journal entry to record floor plan financing and pay vendor bill."""
+        self.ensure_one()
+        
+        if self.financing_type != 'internal':
+            raise UserError(_('Floor plan financing can only be set up for internal financing.'))
+        
+        if not self.financing_amount or self.financing_amount <= 0:
+            raise UserError(_('Please set a valid financing amount first.'))
+        
+        if not self.financing_partner_id:
+            raise UserError(_('Please set the financing partner first.'))
+        
+        if self.financing_journal_entry_id:
+            raise UserError(_('Floor plan financing has already been set up for this vehicle.'))
+        
+        # Find the vendor bill from purchase order
+        po_lines = self.env['purchase.order.line'].search([
+            ('product_id', 'in', self.product_variant_ids.ids),
+            ('order_id.state', 'in', ['purchase', 'done'])
+        ], limit=1)
+        
+        if not po_lines:
+            raise UserError(_('No confirmed purchase order found for this vehicle.'))
+        
+        vendor_bill = self.env['account.move'].search([
+            ('partner_id', '=', po_lines.order_id.partner_id.id),
+            ('move_type', '=', 'in_invoice'),
+            ('state', '=', 'posted'),
+            ('payment_state', 'in', ['not_paid', 'partial']),
+            ('line_ids.purchase_line_id', 'in', po_lines.ids)
+        ], limit=1)
+        
+        if not vendor_bill:
+            raise UserError(_('No unpaid vendor bill found for this vehicle purchase.'))
+        
+        # Get the liability account
+        liability_account = self.financing_liability_account_id
+        if not liability_account:
+            raise UserError(_('Please configure the Floor Plan Payable account.'))
+        
+        # Get the default journal for payments
+        journal = self.env['account.journal'].search([
+            ('type', '=', 'general'),
+            ('company_id', '=', self.env.company.id)
+        ], limit=1)
+        
+        if not journal:
+            raise UserError(_('No general journal found. Please create one first.'))
+        
+        # Prepare analytic distribution
+        analytic_dist = {str(self.analytic_account_id.id): 100.0} if self.analytic_account_id else {}
+        
+        # Create journal entry to record the financing
+        journal_entry_vals = {
+            'move_type': 'entry',
+            'journal_id': journal.id,
+            'date': self.financing_start_date or fields.Date.today(),
+            'ref': _('Floor plan financing for %s') % self.name,
+            'line_ids': [
+                # Debit: Accounts Payable (reduces vendor bill)
+                (0, 0, {
+                    'name': _('Floor plan payment for %s') % self.name,
+                    'account_id': vendor_bill.line_ids.filtered(lambda l: l.account_id.account_type == 'liability_payable')[0].account_id.id,
+                    'partner_id': vendor_bill.partner_id.id,
+                    'debit': self.financing_amount,
+                    'credit': 0,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+                # Credit: Floor Plan Payable (creates liability)
+                (0, 0, {
+                    'name': _('Floor plan financing for %s') % self.name,
+                    'account_id': liability_account.id,
+                    'partner_id': self.financing_partner_id.id,
+                    'debit': 0,
+                    'credit': self.financing_amount,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+            ],
+        }
+        
+        journal_entry = self.env['account.move'].create(journal_entry_vals)
+        journal_entry.action_post()
+        
+        # Register payment against vendor bill
+        # Get the payable line from journal entry
+        payable_line = journal_entry.line_ids.filtered(lambda l: l.account_id.account_type == 'liability_payable')
+        vendor_bill_payable_line = vendor_bill.line_ids.filtered(lambda l: l.account_id.account_type == 'liability_payable')
+        
+        # Reconcile if amounts match or do partial reconciliation
+        if payable_line and vendor_bill_payable_line:
+            (payable_line + vendor_bill_payable_line).reconcile()
+        
+        # Update product template with financing info
+        self.write({
+            'financing_journal_entry_id': journal_entry.id,
+            'financing_balance': self.financing_amount,
+        })
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'account.move',
+            'res_id': journal_entry.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
     def action_generate_interest_bill(self):
         """Manually generate an interest bill for internal financing."""
         self.ensure_one()
@@ -127,7 +234,7 @@ class ProductTemplate(models.Model):
         return self._create_interest_bill(bill_date)
 
     def _create_interest_bill(self, bill_date):
-        """Create an interest bill for the given date."""
+        """Create a journal entry to record interest expense and increase floor plan liability."""
         self.ensure_one()
         
         # Calculate daily interest rate (Annual Rate / 365)
@@ -150,13 +257,12 @@ class ProductTemplate(models.Model):
         # Calculate interest for this period
         monthly_interest = daily_rate * days_charged
         
-        # Get the expense account to use
-        # Priority: 1) User-specified account, 2) Interest expense account, 3) Financial costs, 4) Any expense account
-        account = self.financing_expense_account_id
+        # Get the expense account
+        expense_account = self.financing_expense_account_id
         
-        if not account:
+        if not expense_account:
             # Try to find the best matching expense account for interest
-            account = self.env['account.account'].search([
+            expense_account = self.env['account.account'].search([
                 ('account_type', '=', 'expense'),
                 '|', '|',
                 ('code', 'ilike', 'interest'),
@@ -165,42 +271,70 @@ class ProductTemplate(models.Model):
             ], limit=1)
         
         # Fallback to any expense account
-        if not account:
-            account = self.env['account.account'].search([
+        if not expense_account:
+            expense_account = self.env['account.account'].search([
                 ('account_type', '=', 'expense'),
             ], limit=1)
         
-        if not account:
-            raise UserError(_('Please configure at least one expense account in your chart of accounts.'))
+        if not expense_account:
+            raise UserError(_('Please configure an expense account in your chart of accounts.'))
+        
+        # Get the liability account
+        liability_account = self.financing_liability_account_id
+        if not liability_account:
+            raise UserError(_('Please configure the Floor Plan Payable account.'))
+        
+        # Get the default journal for general entries
+        journal = self.env['account.journal'].search([
+            ('type', '=', 'general'),
+            ('company_id', '=', self.env.company.id)
+        ], limit=1)
+        
+        if not journal:
+            raise UserError(_('No general journal found. Please create one first.'))
         
         # Prepare analytic distribution
         analytic_dist = {str(self.analytic_account_id.id): 100.0} if self.analytic_account_id else {}
         
-        # Create vendor bill
-        bill_vals = {
-            'move_type': 'in_invoice',
-            'partner_id': self.financing_partner_id.id,
-            'invoice_date': bill_date,
+        # Create journal entry for interest
+        interest_description = _('Interest charge - %s\nVehicle: %s\nPeriod: %s to %s\nDaily Rate: $%.2f × %d days') % (
+            bill_date.strftime('%B %Y'),
+            self.name,
+            period_start.strftime('%m/%d/%Y'),
+            period_end.strftime('%m/%d/%Y'),
+            daily_rate,
+            days_charged
+        )
+        
+        journal_entry_vals = {
+            'move_type': 'entry',
+            'journal_id': journal.id,
             'date': bill_date,
-            'invoice_line_ids': [(0, 0, {
-                'name': _('Interest charge - %s\nVehicle: %s\nPeriod: %s to %s\nDaily Rate: $%.2f × %d days') % (
-                    bill_date.strftime('%B %Y'),
-                    self.name,
-                    period_start.strftime('%m/%d/%Y'),
-                    period_end.strftime('%m/%d/%Y'),
-                    daily_rate,
-                    days_charged
-                ),
-                'quantity': 1,
-                'price_unit': monthly_interest,
-                'account_id': account.id,
-                'analytic_distribution': analytic_dist or False,
-            })],
+            'ref': _('Interest - %s - %s') % (self.name, bill_date.strftime('%B %Y')),
+            'line_ids': [
+                # Debit: Interest Expense
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': expense_account.id,
+                    'debit': monthly_interest,
+                    'credit': 0,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+                # Credit: Floor Plan Payable (increases liability)
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': liability_account.id,
+                    'partner_id': self.financing_partner_id.id,
+                    'debit': 0,
+                    'credit': monthly_interest,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+            ],
         }
         
-        bill = self.env['account.move'].create(bill_vals)
+        bill = self.env['account.move'].create(journal_entry_vals)
         
-        # Auto-confirm the bill
+        # Auto-post the journal entry
         bill.action_post()
         
         # Create financing record
@@ -211,8 +345,11 @@ class ProductTemplate(models.Model):
             'bill_id': bill.id,
         })
         
-        # Update last bill date
-        self.last_interest_bill_date = bill_date
+        # Update last bill date and increase floor plan balance
+        self.write({
+            'last_interest_bill_date': bill_date,
+            'financing_balance': self.financing_balance + monthly_interest,
+        })
         
         return {
             'type': 'ir.actions.act_window',
