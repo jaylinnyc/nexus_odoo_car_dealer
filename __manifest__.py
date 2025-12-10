@@ -46,6 +46,7 @@ Car Dealer Customizations
         'views/test.xml',
         'views/vehicle_show.xml',
         'views/financing_views.xml',
+        'views/financing_topup_wizard.xml',
     ],
 
     # Only if you created new models and want demo data

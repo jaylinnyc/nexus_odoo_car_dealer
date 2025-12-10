@@ -81,6 +81,59 @@ class VehicleFinancing(models.Model):
         return result
 
 
+class VehicleFinancingTransaction(models.Model):
+    _name = 'vehicle.financing.transaction'
+    _description = 'Vehicle Financing Transaction History'
+    _order = 'product_id, transaction_date desc'
+
+    product_id = fields.Many2one(
+        'product.template',
+        string='Vehicle',
+        required=True,
+        ondelete='cascade',
+        index=True
+    )
+    transaction_date = fields.Date(
+        string='Transaction Date',
+        required=True,
+        default=fields.Date.today
+    )
+    transaction_type = fields.Selection([
+        ('initial', 'Initial Financing'),
+        ('topup', 'Top-Up Financing'),
+        ('paydown', 'Pay Down'),
+    ], string='Type', required=True, default='topup')
+    amount = fields.Monetary(
+        string='Amount',
+        currency_field='currency_id',
+        required=True,
+        help='Positive for financing/top-up, negative for pay down'
+    )
+    balance_after = fields.Monetary(
+        string='Balance After',
+        currency_field='currency_id',
+        readonly=True,
+        help='Floor plan balance after this transaction'
+    )
+    vendor_bill_id = fields.Many2one(
+        'account.move',
+        string='Related Bill',
+        help='Vendor bill that was paid with this financing'
+    )
+    journal_entry_id = fields.Many2one(
+        'account.move',
+        string='Journal Entry',
+        readonly=True,
+        help='Journal entry that recorded this transaction'
+    )
+    currency_id = fields.Many2one(
+        'res.currency',
+        string='Currency',
+        default=lambda self: self.env.company.currency_id
+    )
+    notes = fields.Text(string='Notes')
+
+
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
 
@@ -88,6 +141,11 @@ class ProductTemplate(models.Model):
         'vehicle.financing',
         'product_id',
         string='Financing History'
+    )
+    financing_transaction_ids = fields.One2many(
+        'vehicle.financing.transaction',
+        'product_id',
+        string='Financing Transactions'
     )
     financing_count = fields.Integer(
         string='Financing Bills',
@@ -100,7 +158,12 @@ class ProductTemplate(models.Model):
             product.financing_count = len(product.financing_ids)
 
     def action_setup_floor_plan_financing(self):
-        """Create journal entry to record floor plan financing and pay vendor bill."""
+        """Create journal entry to record floor plan financing and pay vendor bills.
+        
+        Payment priority:
+        1. Original vendor bill (from purchase order) gets paid first
+        2. If financing amount remains, landed cost bills are paid in chronological order (earliest first)
+        """
         self.ensure_one()
         
         if self.financing_type != 'internal':
@@ -115,7 +178,7 @@ class ProductTemplate(models.Model):
         if self.financing_journal_entry_id:
             raise UserError(_('Floor plan financing has already been set up for this vehicle.'))
         
-        # Find the vendor bill from purchase order
+        # Find the primary vendor bill from purchase order
         po_lines = self.env['purchase.order.line'].search([
             ('product_id', 'in', self.product_variant_ids.ids),
             ('order_id.state', 'in', ['purchase', 'done'])
@@ -124,7 +187,7 @@ class ProductTemplate(models.Model):
         if not po_lines:
             raise UserError(_('No confirmed purchase order found for this vehicle.'))
         
-        vendor_bill = self.env['account.move'].search([
+        primary_vendor_bill = self.env['account.move'].search([
             ('partner_id', '=', po_lines.order_id.partner_id.id),
             ('move_type', '=', 'in_invoice'),
             ('state', '=', 'posted'),
@@ -132,8 +195,17 @@ class ProductTemplate(models.Model):
             ('line_ids.purchase_line_id', 'in', po_lines.ids)
         ], limit=1)
         
-        if not vendor_bill:
+        if not primary_vendor_bill:
             raise UserError(_('No unpaid vendor bill found for this vehicle purchase.'))
+        
+        # Find landed cost bills (ordered by date, earliest first)
+        landed_cost_bills = self.env['account.move'].search([
+            ('move_type', '=', 'in_invoice'),
+            ('state', '=', 'posted'),
+            ('payment_state', 'in', ['not_paid', 'partial']),
+            ('id', '!=', primary_vendor_bill.id),
+            ('id', 'in', self.vendor_bill_ids.ids)
+        ], order='invoice_date asc, id asc')
         
         # Get the liability account
         liability_account = self.financing_liability_account_id
@@ -165,71 +237,138 @@ class ProductTemplate(models.Model):
         # Prepare analytic distribution
         analytic_dist = {str(self.analytic_account_id.id): 100.0} if self.analytic_account_id else {}
         
-        # Create journal entry to record the financing
-        financing_ref = _('Floor Plan Financing - %s (Partner: %s)') % (
-            self.name, 
-            self.financing_partner_id.name
-        )
+        # Build the payment distribution
+        # Priority 1: Pay the primary vendor bill
+        # Priority 2: Pay landed cost bills in chronological order with remaining amount
+        
+        remaining_amount = self.financing_amount
+        bill_payments = []
+        
+        # Pay primary bill first
+        primary_amount_due = primary_vendor_bill.amount_residual
+        primary_payment = min(remaining_amount, primary_amount_due)
+        primary_payable_account = primary_vendor_bill.line_ids.filtered(
+            lambda l: l.account_id.account_type == 'liability_payable'
+        )[0].account_id
+        
+        bill_payments.append({
+            'bill': primary_vendor_bill,
+            'amount': primary_payment,
+            'account': primary_payable_account,
+            'partner': primary_vendor_bill.partner_id,
+            'type': 'primary'
+        })
+        remaining_amount -= primary_payment
+        
+        # Pay landed cost bills with remaining amount (if any)
+        for lc_bill in landed_cost_bills:
+            if remaining_amount <= 0:
+                break
+            
+            lc_amount_due = lc_bill.amount_residual
+            lc_payment = min(remaining_amount, lc_amount_due)
+            lc_payable_account = lc_bill.line_ids.filtered(
+                lambda l: l.account_id.account_type == 'liability_payable'
+            )[0].account_id
+            
+            bill_payments.append({
+                'bill': lc_bill,
+                'amount': lc_payment,
+                'account': lc_payable_account,
+                'partner': lc_bill.partner_id,
+                'type': 'landed_cost'
+            })
+            remaining_amount -= lc_payment
+        
+        # Build journal entry line items
+        line_items = []
+        bills_paid_list = []
+        
+        for payment in bill_payments:
+            # Debit: Accounts Payable (reduces vendor bill)
+            line_items.append((0, 0, {
+                'name': _('Floor plan payment - %s - %s') % (
+                    'Primary Bill' if payment['type'] == 'primary' else 'Landed Cost',
+                    payment['bill'].name
+                ),
+                'account_id': payment['account'].id,
+                'partner_id': payment['partner'].id,
+                'debit': payment['amount'],
+                'credit': 0,
+                'analytic_distribution': analytic_dist or False,
+            }))
+            bills_paid_list.append('%s: %s' % (payment['bill'].name, payment['amount']))
+        
+        # Credit: Floor Plan Payable (creates liability)
+        line_items.append((0, 0, {
+            'name': _('Floor plan financing - %s') % self.name,
+            'account_id': liability_account.id,
+            'partner_id': self.financing_partner_id.id,
+            'debit': 0,
+            'credit': self.financing_amount,
+            'analytic_distribution': analytic_dist or False,
+        }))
+        
+        # Create journal entry
+        financing_ref = _('Floor Plan Financing - %s') % self.name
         
         journal_entry_vals = {
             'move_type': 'entry',
             'journal_id': journal.id,
             'date': self.financing_start_date or fields.Date.today(),
             'ref': financing_ref,
-            'narration': _('Floor plan financing for %s\nFinancing Amount: %s\nFinancing Partner: %s\nVendor Bill: %s') % (
+            'narration': _('Floor plan financing for %s\nFinancing Amount: %s\nFinancing Partner: %s\n\nBills Paid:\n%s') % (
                 self.name,
                 self.financing_amount,
                 self.financing_partner_id.name,
-                vendor_bill.name
+                '\n'.join(bills_paid_list)
             ),
-            'line_ids': [
-                # Debit: Accounts Payable (reduces vendor bill)
-                (0, 0, {
-                    'name': _('Floor plan payment - %s via %s') % (self.name, self.financing_partner_id.name),
-                    'account_id': vendor_bill.line_ids.filtered(lambda l: l.account_id.account_type == 'liability_payable')[0].account_id.id,
-                    'partner_id': vendor_bill.partner_id.id,
-                    'debit': self.financing_amount,
-                    'credit': 0,
-                    'analytic_distribution': analytic_dist or False,
-                }),
-                # Credit: Floor Plan Payable (creates liability)
-                (0, 0, {
-                    'name': _('Floor plan financing - %s') % self.name,
-                    'account_id': liability_account.id,
-                    'partner_id': self.financing_partner_id.id,
-                    'debit': 0,
-                    'credit': self.financing_amount,
-                    'analytic_distribution': analytic_dist or False,
-                }),
-            ],
+            'line_ids': line_items,
         }
         
         journal_entry = self.env['account.move'].create(journal_entry_vals)
         journal_entry.action_post()
         
-        # Register payment against vendor bill
-        # Get the payable line from journal entry
-        payable_line = journal_entry.line_ids.filtered(lambda l: l.account_id.account_type == 'liability_payable')
-        vendor_bill_payable_line = vendor_bill.line_ids.filtered(lambda l: l.account_id.account_type == 'liability_payable')
+        # Reconcile each bill payment
+        for payment in bill_payments:
+            payable_line = journal_entry.line_ids.filtered(
+                lambda l: l.account_id == payment['account'] and l.partner_id == payment['partner']
+            )
+            bill_payable_line = payment['bill'].line_ids.filtered(
+                lambda l: l.account_id.account_type == 'liability_payable'
+            )
+            
+            if payable_line and bill_payable_line:
+                (payable_line + bill_payable_line).reconcile()
+            
+            # Add message to each bill
+            payment['bill'].message_post(
+                body=Markup('<b>Floor Plan Financing Applied</b><br/>'
+                       'Amount: %s<br/>'
+                       'Type: %s<br/>'
+                       'Financing Partner: %s<br/>'
+                       'Journal Entry: %s<br/>'
+                       'Vehicle: %s') % (
+                    payment['amount'],
+                    'Primary Bill Payment' if payment['type'] == 'primary' else 'Landed Cost Payment',
+                    self.financing_partner_id.name,
+                    journal_entry.name,
+                    self.name
+                ),
+                subject=_('Floor Plan Financing')
+            )
         
-        # Reconcile if amounts match or do partial reconciliation
-        if payable_line and vendor_bill_payable_line:
-            (payable_line + vendor_bill_payable_line).reconcile()
-        
-        # Add a note to the vendor bill for reference
-        vendor_bill.message_post(
-            body=Markup('<b>Floor Plan Financing Applied</b><br/>'
-                   'Amount: %s<br/>'
-                   'Financing Partner: %s<br/>'
-                   'Journal Entry: %s<br/>'
-                   'Vehicle: %s') % (
-                self.financing_amount,
-                self.financing_partner_id.name,
-                journal_entry.name,
-                self.name
-            ),
-            subject=_('Floor Plan Financing')
-        )
+        # Create financing transaction record
+        self.env['vehicle.financing.transaction'].create({
+            'product_id': self.id,
+            'transaction_date': self.financing_start_date or fields.Date.today(),
+            'transaction_type': 'initial',
+            'amount': self.financing_amount,
+            'balance_after': self.financing_amount,
+            'vendor_bill_id': primary_vendor_bill.id,
+            'journal_entry_id': journal_entry.id,
+            'notes': _('Initial floor plan financing setup\nPaid %d bill(s)') % len(bill_payments),
+        })
         
         # Update product template with financing info
         self.write({
@@ -243,6 +382,49 @@ class ProductTemplate(models.Model):
             'res_id': journal_entry.id,
             'view_mode': 'form',
             'target': 'current',
+        }
+
+    def action_topup_floor_plan_financing(self):
+        """Add additional financing (top-up) for unpaid bills.
+        
+        Opens a wizard to enter the top-up amount, then automatically distributes
+        the amount across unpaid bills in chronological order (earliest first).
+        """
+        self.ensure_one()
+        
+        if self.financing_type != 'internal':
+            raise UserError(_('Top-up financing is only available for internal financing.'))
+        
+        if not self.financing_journal_entry_id:
+            raise UserError(_('Please set up floor plan financing first before adding a top-up.'))
+        
+        # Find unpaid vendor bills related to this vehicle (ordered by date)
+        unpaid_bills = self.env['account.move'].search([
+            ('move_type', '=', 'in_invoice'),
+            ('state', '=', 'posted'),
+            ('payment_state', 'in', ['not_paid', 'partial']),
+            ('id', 'in', self.vendor_bill_ids.ids)
+        ], order='invoice_date asc, id asc')
+        
+        if not unpaid_bills:
+            raise UserError(_('No unpaid bills found for this vehicle.'))
+        
+        # Calculate total unpaid amount
+        total_unpaid = sum(unpaid_bills.mapped('amount_residual'))
+        
+        # Return a simplified wizard to enter top-up amount
+        return {
+            'name': _('Top-Up Floor Plan Financing'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'vehicle.financing.topup.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_product_id': self.id,
+                'default_topup_amount': total_unpaid,  # Suggest full unpaid amount
+                'unpaid_bill_count': len(unpaid_bills),
+                'total_unpaid_amount': total_unpaid,
+            },
         }
 
     def action_generate_interest_bill(self):
@@ -274,11 +456,16 @@ class ProductTemplate(models.Model):
         return self._create_interest_bill(bill_date)
 
     def _create_interest_bill(self, bill_date):
-        """Create a journal entry to record interest expense and increase floor plan liability."""
-        self.ensure_one()
+        """Create a journal entry to record interest expense and increase floor plan liability.
         
-        # Calculate daily interest rate (Annual Rate / 365)
-        daily_rate = (self.financing_amount * self.financing_rate / 100) / 365
+        Uses time-weighted interest calculation:
+        If there are balance changes (top-ups) during the billing period,
+        interest is calculated separately for each balance segment.
+        
+        Example: If original balance is $50,000 from day 1-19, then $55,000 from day 20-30,
+        we charge interest on $50,000 for 19 days and $55,000 for 11 days.
+        """
+        self.ensure_one()
         
         # Determine the billing period
         # For the first bill, start from financing_start_date
@@ -291,11 +478,110 @@ class ProductTemplate(models.Model):
         # Period end is the last day of the bill_date's month
         period_end = (bill_date + relativedelta(day=31))
         
-        # Calculate number of days in the billing period
-        days_charged = (period_end - period_start).days + 1  # +1 to include both start and end dates
+        # Get all financing transactions within this billing period
+        # Transactions represent balance changes (initial financing, top-ups, etc.)
+        transactions = self.env['vehicle.financing.transaction'].search([
+            ('product_id', '=', self.id),
+            ('transaction_date', '>=', period_start),
+            ('transaction_date', '<=', period_end),
+        ], order='transaction_date asc')
         
-        # Calculate interest for this period
-        monthly_interest = daily_rate * days_charged
+        # Build time-weighted interest calculation
+        # Start with the balance at the beginning of the period
+        current_balance = self.financing_balance
+        
+        # If there are transactions in this period, we need to work backwards
+        # to find the balance at the start of the period
+        if transactions:
+            # Find the balance before the first transaction in this period
+            # by looking at the transaction just before this period
+            prev_transaction = self.env['vehicle.financing.transaction'].search([
+                ('product_id', '=', self.id),
+                ('transaction_date', '<', period_start),
+            ], order='transaction_date desc', limit=1)
+            
+            if prev_transaction:
+                current_balance = prev_transaction.balance_after
+            else:
+                # No previous transaction means we start from 0
+                # This shouldn't happen if initial financing was recorded properly
+                current_balance = 0
+        
+        # Calculate interest for each segment
+        total_interest = 0
+        interest_details = []  # For description
+        segment_start = period_start
+        
+        # Annual interest rate
+        annual_rate = self.financing_rate
+        
+        for transaction in transactions:
+            # Calculate interest from segment_start to transaction_date - 1
+            segment_end = transaction.transaction_date - relativedelta(days=1)
+            days_in_segment = (segment_end - segment_start).days + 1
+            
+            if days_in_segment > 0 and current_balance > 0:
+                # Daily rate for this balance: (balance × annual_rate / 100) / 365
+                daily_interest = (current_balance * annual_rate / 100) / 365
+                segment_interest = daily_interest * days_in_segment
+                total_interest += segment_interest
+                
+                interest_details.append(
+                    _('  $%s @ %.2f%% for %d days = $%.2f') % (
+                        '{:,.2f}'.format(current_balance),
+                        annual_rate,
+                        days_in_segment,
+                        segment_interest
+                    )
+                )
+            
+            # Move to next segment
+            current_balance = transaction.balance_after
+            segment_start = transaction.transaction_date
+        
+        # Calculate interest for the final segment (from last transaction to period end)
+        segment_end = period_end
+        days_in_segment = (segment_end - segment_start).days + 1
+        
+        if days_in_segment > 0 and current_balance > 0:
+            daily_interest = (current_balance * annual_rate / 100) / 365
+            segment_interest = daily_interest * days_in_segment
+            total_interest += segment_interest
+            
+            interest_details.append(
+                _('  $%s @ %.2f%% for %d days = $%.2f') % (
+                    '{:,.2f}'.format(current_balance),
+                    annual_rate,
+                    days_in_segment,
+                    segment_interest
+                )
+            )
+        
+        # Build interest description
+        if interest_details:
+            interest_breakdown = '\n'.join(interest_details)
+            interest_description = _('Interest charge - %s\nVehicle: %s\nPeriod: %s to %s\n\nTime-weighted calculation:\n%s\n\nTotal Interest: $%.2f') % (
+                bill_date.strftime('%B %Y'),
+                self.name,
+                period_start.strftime('%m/%d/%Y'),
+                period_end.strftime('%m/%d/%Y'),
+                interest_breakdown,
+                total_interest
+            )
+        else:
+            # Fallback to simple calculation if no transactions found
+            days_charged = (period_end - period_start).days + 1
+            daily_rate = (current_balance * annual_rate / 100) / 365
+            total_interest = daily_rate * days_charged
+            
+            interest_description = _('Interest charge - %s\nVehicle: %s\nPeriod: %s to %s\nDaily Rate: $%.2f × %d days') % (
+                bill_date.strftime('%B %Y'),
+                self.name,
+                period_start.strftime('%m/%d/%Y'),
+                period_end.strftime('%m/%d/%Y'),
+                daily_rate,
+                days_charged
+            )
         
         # Get the expense account
         expense_account = self.financing_expense_account_id
@@ -337,15 +623,47 @@ class ProductTemplate(models.Model):
         analytic_dist = {str(self.analytic_account_id.id): 100.0} if self.analytic_account_id else {}
         
         # Create journal entry for interest
-        interest_description = _('Interest charge - %s\nVehicle: %s\nPeriod: %s to %s\nDaily Rate: $%.2f × %d days') % (
-            bill_date.strftime('%B %Y'),
-            self.name,
-            period_start.strftime('%m/%d/%Y'),
-            period_end.strftime('%m/%d/%Y'),
-            daily_rate,
-            days_charged
-        )
         
+        # Get the expense account
+        expense_account = self.financing_expense_account_id
+        
+        if not expense_account:
+            # Try to find the best matching expense account for interest
+            expense_account = self.env['account.account'].search([
+                ('account_type', '=', 'expense'),
+                '|', '|',
+                ('code', 'ilike', 'interest'),
+                ('name', 'ilike', 'interest'),
+                ('name', 'ilike', 'financial')
+            ], limit=1)
+        
+        # Fallback to any expense account
+        if not expense_account:
+            expense_account = self.env['account.account'].search([
+                ('account_type', '=', 'expense'),
+            ], limit=1)
+        
+        if not expense_account:
+            raise UserError(_('Please configure an expense account in your chart of accounts.'))
+        
+        # Get the liability account
+        liability_account = self.financing_liability_account_id
+        if not liability_account:
+            raise UserError(_('Please configure the Floor Plan Payable account.'))
+        
+        # Get the default journal for general entries
+        journal = self.env['account.journal'].search([
+            ('type', '=', 'general'),
+            ('company_id', '=', self.env.company.id)
+        ], limit=1)
+        
+        if not journal:
+            raise UserError(_('No general journal found. Please create one first.'))
+        
+        # Prepare analytic distribution
+        analytic_dist = {str(self.analytic_account_id.id): 100.0} if self.analytic_account_id else {}
+        
+        # Create journal entry for interest
         journal_entry_vals = {
             'move_type': 'entry',
             'journal_id': journal.id,
@@ -356,7 +674,7 @@ class ProductTemplate(models.Model):
                 (0, 0, {
                     'name': interest_description,
                     'account_id': expense_account.id,
-                    'debit': monthly_interest,
+                    'debit': total_interest,
                     'credit': 0,
                     'analytic_distribution': analytic_dist or False,
                 }),
@@ -366,7 +684,7 @@ class ProductTemplate(models.Model):
                     'account_id': liability_account.id,
                     'partner_id': self.financing_partner_id.id,
                     'debit': 0,
-                    'credit': monthly_interest,
+                    'credit': total_interest,
                     'analytic_distribution': analytic_dist or False,
                 }),
             ],
@@ -381,14 +699,14 @@ class ProductTemplate(models.Model):
         financing_record = self.env['vehicle.financing'].create({
             'product_id': self.id,
             'bill_date': bill_date,
-            'interest_amount': monthly_interest,
+            'interest_amount': total_interest,
             'bill_id': bill.id,
         })
         
         # Update last bill date and increase floor plan balance
         self.write({
             'last_interest_bill_date': bill_date,
-            'financing_balance': self.financing_balance + monthly_interest,
+            'financing_balance': self.financing_balance + total_interest,
         })
         
         return {
@@ -446,3 +764,224 @@ class ProductTemplate(models.Model):
                         str(e),
                         exc_info=True
                     )
+
+
+class VehicleFinancingTopupWizard(models.TransientModel):
+    _name = 'vehicle.financing.topup.wizard'
+    _description = 'Top-Up Floor Plan Financing Wizard'
+
+    product_id = fields.Many2one(
+        'product.template',
+        string='Vehicle',
+        required=True,
+        readonly=True
+    )
+    topup_amount = fields.Monetary(
+        string='Top-Up Amount',
+        currency_field='currency_id',
+        required=True,
+        help='Amount to add to floor plan financing. Will be automatically distributed across unpaid bills in chronological order.'
+    )
+    currency_id = fields.Many2one(
+        'res.currency',
+        string='Currency',
+        default=lambda self: self.env.company.currency_id
+    )
+    topup_date = fields.Date(
+        string='Top-Up Date',
+        required=True,
+        default=fields.Date.today
+    )
+    notes = fields.Text(string='Notes')
+    
+    # Display fields to show unpaid bills summary
+    unpaid_bill_count = fields.Integer(
+        string='Unpaid Bills',
+        compute='_compute_unpaid_summary'
+    )
+    total_unpaid_amount = fields.Monetary(
+        string='Total Unpaid',
+        currency_field='currency_id',
+        compute='_compute_unpaid_summary'
+    )
+
+    @api.depends('product_id')
+    def _compute_unpaid_summary(self):
+        for wizard in self:
+            if wizard.product_id:
+                unpaid_bills = self.env['account.move'].search([
+                    ('move_type', '=', 'in_invoice'),
+                    ('state', '=', 'posted'),
+                    ('payment_state', 'in', ['not_paid', 'partial']),
+                    ('id', 'in', wizard.product_id.vendor_bill_ids.ids)
+                ])
+                wizard.unpaid_bill_count = len(unpaid_bills)
+                wizard.total_unpaid_amount = sum(unpaid_bills.mapped('amount_residual'))
+            else:
+                wizard.unpaid_bill_count = 0
+                wizard.total_unpaid_amount = 0
+
+    def action_apply_topup(self):
+        """Create journal entry for top-up financing and automatically distribute across unpaid bills.
+        
+        Payment distribution:
+        - Unpaid bills are paid in chronological order (earliest invoice date first)
+        - Each bill gets paid up to its outstanding amount or remaining top-up balance
+        """
+        self.ensure_one()
+        
+        product = self.product_id
+        
+        # Find all unpaid bills in chronological order
+        unpaid_bills = self.env['account.move'].search([
+            ('move_type', '=', 'in_invoice'),
+            ('state', '=', 'posted'),
+            ('payment_state', 'in', ['not_paid', 'partial']),
+            ('id', 'in', product.vendor_bill_ids.ids)
+        ], order='invoice_date asc, id asc')
+        
+        if not unpaid_bills:
+            raise UserError(_('No unpaid bills found for this vehicle.'))
+        
+        # Get the liability account
+        liability_account = product.financing_liability_account_id
+        if not liability_account:
+            liability_account = self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False)
+        
+        if not liability_account:
+            raise UserError(_('Please configure the Floor Plan Payable account.'))
+        
+        # Get the default journal
+        journal = self.env['account.journal'].search([
+            ('type', '=', 'general'),
+            ('company_id', '=', self.env.company.id)
+        ], limit=1)
+        
+        if not journal:
+            raise UserError(_('No general journal found.'))
+        
+        # Prepare analytic distribution
+        analytic_dist = {str(product.analytic_account_id.id): 100.0} if product.analytic_account_id else {}
+        
+        # Build the payment distribution across unpaid bills
+        remaining_amount = self.topup_amount
+        bill_payments = []
+        
+        for bill in unpaid_bills:
+            if remaining_amount <= 0:
+                break
+            
+            bill_amount_due = bill.amount_residual
+            payment_amount = min(remaining_amount, bill_amount_due)
+            payable_account = bill.line_ids.filtered(
+                lambda l: l.account_id.account_type == 'liability_payable'
+            )[0].account_id
+            
+            bill_payments.append({
+                'bill': bill,
+                'amount': payment_amount,
+                'account': payable_account,
+                'partner': bill.partner_id,
+            })
+            remaining_amount -= payment_amount
+        
+        # Build journal entry line items
+        line_items = []
+        bills_paid_list = []
+        
+        for payment in bill_payments:
+            # Debit: Accounts Payable (reduces vendor bill)
+            line_items.append((0, 0, {
+                'name': _('Floor plan top-up payment - %s') % payment['bill'].name,
+                'account_id': payment['account'].id,
+                'partner_id': payment['partner'].id,
+                'debit': payment['amount'],
+                'credit': 0,
+                'analytic_distribution': analytic_dist or False,
+            }))
+            bills_paid_list.append('%s: %s' % (payment['bill'].name, payment['amount']))
+        
+        # Credit: Floor Plan Payable (increases liability)
+        line_items.append((0, 0, {
+            'name': _('Floor plan top-up - %s') % product.name,
+            'account_id': liability_account.id,
+            'partner_id': product.financing_partner_id.id,
+            'debit': 0,
+            'credit': self.topup_amount,
+            'analytic_distribution': analytic_dist or False,
+        }))
+        
+        # Create journal entry for top-up
+        topup_ref = _('Floor Plan Top-Up - %s') % product.name
+        
+        journal_entry_vals = {
+            'move_type': 'entry',
+            'journal_id': journal.id,
+            'date': self.topup_date,
+            'ref': topup_ref,
+            'narration': _('Floor plan financing top-up\nVehicle: %s\nTop-Up Amount: %s\n\nBills Paid:\n%s%s') % (
+                product.name,
+                self.topup_amount,
+                '\n'.join(bills_paid_list),
+                '\n\n' + self.notes if self.notes else ''
+            ),
+            'line_ids': line_items,
+        }
+        
+        journal_entry = self.env['account.move'].create(journal_entry_vals)
+        journal_entry.action_post()
+        
+        # Reconcile each bill payment
+        for payment in bill_payments:
+            payable_line = journal_entry.line_ids.filtered(
+                lambda l: l.account_id == payment['account'] and l.partner_id == payment['partner']
+            )
+            bill_payable_line = payment['bill'].line_ids.filtered(
+                lambda l: l.account_id.account_type == 'liability_payable'
+            )
+            
+            if payable_line and bill_payable_line:
+                (payable_line + bill_payable_line).reconcile()
+            
+            # Add message to each bill
+            payment['bill'].message_post(
+                body=Markup('<b>Floor Plan Top-Up Applied</b><br/>'
+                       'Amount: %s<br/>'
+                       'Date: %s<br/>'
+                       'Financing Partner: %s<br/>'
+                       'Journal Entry: %s<br/>'
+                       'Vehicle: %s') % (
+                    payment['amount'],
+                    self.topup_date,
+                    product.financing_partner_id.name,
+                    journal_entry.name,
+                    product.name
+                ),
+                subject=_('Floor Plan Top-Up')
+            )
+        
+        # Create financing transaction record
+        new_balance = product.financing_balance + self.topup_amount
+        self.env['vehicle.financing.transaction'].create({
+            'product_id': product.id,
+            'transaction_date': self.topup_date,
+            'transaction_type': 'topup',
+            'amount': self.topup_amount,
+            'balance_after': new_balance,
+            'vendor_bill_id': bill_payments[0]['bill'].id if bill_payments else False,
+            'journal_entry_id': journal_entry.id,
+            'notes': (self.notes or '') + _('\nPaid %d bill(s) automatically') % len(bill_payments),
+        })
+        
+        # Update financing balance
+        product.write({
+            'financing_balance': new_balance,
+        })
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'account.move',
+            'res_id': journal_entry.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }

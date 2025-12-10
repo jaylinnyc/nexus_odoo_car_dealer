@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Top-Up Financing Wizard Form -->
+    <record id="view_vehicle_financing_topup_wizard_form" model="ir.ui.view">
+        <field name="name">vehicle.financing.topup.wizard.form</field>
+        <field name="model">vehicle.financing.topup.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Top-Up Floor Plan Financing">
+                <group>
+                    <group>
+                        <field name="product_id" readonly="1"/>
+                        <field name="topup_amount" widget="monetary"/>
+                        <field name="topup_date"/>
+                        <field name="currency_id" invisible="1"/>
+                    </group>
+                    <group>
+                        <label for="unpaid_bill_count" string="Unpaid Bills Summary"/>
+                        <div class="o_row">
+                            <field name="unpaid_bill_count" readonly="1"/> bills totaling
+                            <field name="total_unpaid_amount" widget="monetary" readonly="1"/>
+                        </div>
+                    </group>
+                </group>
+                <group>
+                    <field name="notes" placeholder="Optional notes about this top-up..."/>
+                </group>
+                <div class="alert alert-info" role="alert">
+                    <strong>Auto-Payment:</strong> The top-up amount will be automatically distributed across unpaid bills in chronological order (earliest first).
+                </div>
+                <footer>
+                    <button string="Apply Top-Up" name="action_apply_topup" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>
