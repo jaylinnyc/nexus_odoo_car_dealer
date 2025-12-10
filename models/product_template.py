@@ -169,6 +169,17 @@ class ProductTemplate(models.Model):
                     ('line_ids.purchase_line_id', 'in', po_lines.ids)
                 ])
                 
+                # Also find landed cost bills for this purchase order
+                landed_costs = self.env['stock.landed.cost'].search([
+                    ('picking_ids.purchase_id', '=', po_lines.order_id.id),
+                    ('state', '=', 'done')
+                ])
+                if landed_costs:
+                    landed_cost_bills = landed_costs.mapped('vendor_bill_id').filtered(
+                        lambda b: b.state == 'posted'
+                    )
+                    all_bills = all_bills | landed_cost_bills
+                
                 # Get the main vendor bill (from the supplier)
                 vendor_bill = all_bills.filtered(
                     lambda b: b.partner_id == po_lines.order_id.partner_id

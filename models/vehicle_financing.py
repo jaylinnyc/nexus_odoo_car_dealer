@@ -216,8 +216,9 @@ class ProductTemplate(models.Model):
             (payable_line + vendor_bill_payable_line).reconcile()
         
         # Add a note to the vendor bill for reference
+        from markupsafe import Markup
         vendor_bill.message_post(
-            body=_('<b>Floor Plan Financing Applied</b><br/>'
+            body=Markup('<b>Floor Plan Financing Applied</b><br/>'
                    'Amount: %s<br/>'
                    'Financing Partner: %s<br/>'
                    'Journal Entry: %s<br/>'
