@@ -57,17 +57,8 @@
                                 <field name="total_bills_residual" readonly="1" string="Total Amount Due"/>
                             </group>
                         </group>
-                        <group string="All Related Bills" invisible="not vendor_bill_ids">
-                            <field name="vendor_bill_ids" nolabel="1" readonly="1" widget="many2many">
-                                <tree create="false" edit="false" delete="false">
-                                    <field name="name"/>
-                                    <field name="partner_id"/>
-                                    <field name="invoice_date"/>
-                                    <field name="amount_total"/>
-                                    <field name="amount_residual"/>
-                                    <field name="payment_state"/>
-                                </tree>
-                            </field>
+                        <group string="All Related Bills" invisible="not vendor_bill_ids" colspan="2">
+                            <field name="vendor_bill_ids" nolabel="1" readonly="1" context="{'tree_view_ref': 'account.view_invoice_tree'}"/>
                         </group>
                         <group>
                             <group string="Financing Information">
