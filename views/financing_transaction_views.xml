@@ -71,9 +71,9 @@
                         domain="[('transaction_type', '=', 'paydown')]"/>
                 <separator/>
                 <filter string="This Month" name="filter_this_month" 
-                        date="transaction_date" default_period="this_month"/>
+                        date="transaction_date"/>
                 <filter string="Last 3 Months" name="filter_last_3_months" 
-                        date="transaction_date" default_period="last_three_months"/>
+                        date="transaction_date"/>
                 <group expand="0" string="Group By">
                     <filter string="Vehicle" name="group_product" context="{'group_by': 'product_id'}"/>
                     <filter string="Type" name="group_type" context="{'group_by': 'transaction_type'}"/>
