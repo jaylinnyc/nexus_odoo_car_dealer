@@ -58,7 +58,7 @@
                             </group>
                         </group>
                         <group string="All Related Bills" invisible="not vendor_bill_ids">
-                            <field name="vendor_bill_ids" nolabel="1" readonly="1">
+                            <field name="vendor_bill_ids" nolabel="1" readonly="1" widget="many2many">
                                 <tree create="false" edit="false" delete="false">
                                     <field name="name"/>
                                     <field name="partner_id"/>
