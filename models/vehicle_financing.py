@@ -165,15 +165,26 @@ class ProductTemplate(models.Model):
         analytic_dist = {str(self.analytic_account_id.id): 100.0} if self.analytic_account_id else {}
         
         # Create journal entry to record the financing
+        financing_ref = _('Floor Plan Financing - %s (Partner: %s)') % (
+            self.name, 
+            self.financing_partner_id.name
+        )
+        
         journal_entry_vals = {
             'move_type': 'entry',
             'journal_id': journal.id,
             'date': self.financing_start_date or fields.Date.today(),
-            'ref': _('Floor plan financing for %s') % self.name,
+            'ref': financing_ref,
+            'narration': _('Floor plan financing for %s\nFinancing Amount: %s\nFinancing Partner: %s\nVendor Bill: %s') % (
+                self.name,
+                self.financing_amount,
+                self.financing_partner_id.name,
+                vendor_bill.name
+            ),
             'line_ids': [
                 # Debit: Accounts Payable (reduces vendor bill)
                 (0, 0, {
-                    'name': _('Floor plan payment for %s') % self.name,
+                    'name': _('Floor plan payment - %s via %s') % (self.name, self.financing_partner_id.name),
                     'account_id': vendor_bill.line_ids.filtered(lambda l: l.account_id.account_type == 'liability_payable')[0].account_id.id,
                     'partner_id': vendor_bill.partner_id.id,
                     'debit': self.financing_amount,
@@ -182,7 +193,7 @@ class ProductTemplate(models.Model):
                 }),
                 # Credit: Floor Plan Payable (creates liability)
                 (0, 0, {
-                    'name': _('Floor plan financing for %s') % self.name,
+                    'name': _('Floor plan financing - %s') % self.name,
                     'account_id': liability_account.id,
                     'partner_id': self.financing_partner_id.id,
                     'debit': 0,
@@ -203,6 +214,21 @@ class ProductTemplate(models.Model):
         # Reconcile if amounts match or do partial reconciliation
         if payable_line and vendor_bill_payable_line:
             (payable_line + vendor_bill_payable_line).reconcile()
+        
+        # Add a note to the vendor bill for reference
+        vendor_bill.message_post(
+            body=_('<b>Floor Plan Financing Applied</b><br/>'
+                   'Amount: %s<br/>'
+                   'Financing Partner: %s<br/>'
+                   'Journal Entry: %s<br/>'
+                   'Vehicle: %s') % (
+                self.financing_amount,
+                self.financing_partner_id.name,
+                journal_entry.name,
+                self.name
+            ),
+            subject=_('Floor Plan Financing')
+        )
         
         # Update product template with financing info
         self.write({

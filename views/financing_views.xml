@@ -50,10 +50,24 @@
                             <group>
                                 <field name="vendor_bill_id" readonly="1"/>
                                 <field name="vendor_bill_amount" readonly="1"/>
-                            </group>
-                            <group>
                                 <field name="vendor_bill_amount_residual" readonly="1"/>
                             </group>
+                            <group>
+                                <field name="total_bills_amount" readonly="1" string="Total (with Landed Costs)"/>
+                                <field name="total_bills_residual" readonly="1" string="Total Amount Due"/>
+                            </group>
+                        </group>
+                        <group string="All Related Bills" invisible="not vendor_bill_ids">
+                            <field name="vendor_bill_ids" nolabel="1" readonly="1">
+                                <tree create="false" edit="false" delete="false">
+                                    <field name="name"/>
+                                    <field name="partner_id"/>
+                                    <field name="invoice_date"/>
+                                    <field name="amount_total"/>
+                                    <field name="amount_residual"/>
+                                    <field name="payment_state"/>
+                                </tree>
+                            </field>
                         </group>
                         <group>
                             <group string="Financing Information">

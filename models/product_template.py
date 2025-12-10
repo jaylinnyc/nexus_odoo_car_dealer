@@ -104,6 +104,13 @@ class ProductTemplate(models.Model):
         store=False,
         help='The vendor bill for this vehicle purchase'
     )
+    vendor_bill_ids = fields.Many2many(
+        'account.move',
+        string='All Vendor Bills',
+        compute='_compute_vendor_bill_info',
+        store=False,
+        help='All vendor bills related to this vehicle (including landed costs)'
+    )
     vendor_bill_amount = fields.Monetary(
         string='Vendor Bill Amount',
         currency_field='currency_id',
@@ -117,6 +124,20 @@ class ProductTemplate(models.Model):
         compute='_compute_vendor_bill_info',
         store=False,
         help='Outstanding amount on the vendor bill'
+    )
+    total_bills_amount = fields.Monetary(
+        string='Total Bills Amount',
+        currency_field='currency_id',
+        compute='_compute_vendor_bill_info',
+        store=False,
+        help='Total amount of all bills including landed costs'
+    )
+    total_bills_residual = fields.Monetary(
+        string='Total Amount Due',
+        currency_field='currency_id',
+        compute='_compute_vendor_bill_info',
+        store=False,
+        help='Total outstanding amount on all bills'
     )
 
     @api.depends('product_variant_ids')
@@ -141,29 +162,42 @@ class ProductTemplate(models.Model):
             ], limit=1)
             
             if po_lines:
-                # Find the vendor bill associated with this purchase
-                vendor_bill = self.env['account.move'].search([
-                    ('partner_id', '=', po_lines.order_id.partner_id.id),
+                # Find all vendor bills associated with this purchase (including landed costs)
+                all_bills = self.env['account.move'].search([
                     ('move_type', '=', 'in_invoice'),
                     ('state', '=', 'posted'),
                     ('line_ids.purchase_line_id', 'in', po_lines.ids)
-                ], limit=1)
+                ])
                 
-                if vendor_bill:
+                # Get the main vendor bill (from the supplier)
+                vendor_bill = all_bills.filtered(
+                    lambda b: b.partner_id == po_lines.order_id.partner_id
+                )[:1]
+                
+                if all_bills:
                     product.has_vendor_bill = True
-                    product.vendor_bill_id = vendor_bill.id
-                    product.vendor_bill_amount = vendor_bill.amount_total
-                    product.vendor_bill_amount_residual = vendor_bill.amount_residual
+                    product.vendor_bill_id = vendor_bill.id if vendor_bill else all_bills[0].id
+                    product.vendor_bill_ids = all_bills.ids
+                    product.vendor_bill_amount = vendor_bill.amount_total if vendor_bill else 0
+                    product.vendor_bill_amount_residual = vendor_bill.amount_residual if vendor_bill else 0
+                    product.total_bills_amount = sum(all_bills.mapped('amount_total'))
+                    product.total_bills_residual = sum(all_bills.mapped('amount_residual'))
                 else:
                     product.has_vendor_bill = False
                     product.vendor_bill_id = False
+                    product.vendor_bill_ids = False
                     product.vendor_bill_amount = 0
                     product.vendor_bill_amount_residual = 0
+                    product.total_bills_amount = 0
+                    product.total_bills_residual = 0
             else:
                 product.has_vendor_bill = False
                 product.vendor_bill_id = False
+                product.vendor_bill_ids = False
                 product.vendor_bill_amount = 0
                 product.vendor_bill_amount_residual = 0
+                product.total_bills_amount = 0
+                product.total_bills_residual = 0
 
     @api.model_create_multi
     def create(self, vals_list):
