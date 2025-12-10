@@ -71,10 +71,9 @@
                         domain="[('transaction_type', '=', 'paydown')]"/>
                 <separator/>
                 <filter string="This Month" name="filter_this_month" 
-                        domain="[('transaction_date', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d')),
-                                ('transaction_date', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                        date="transaction_date" default_period="this_month"/>
                 <filter string="Last 3 Months" name="filter_last_3_months" 
-                        domain="[('transaction_date', '&gt;=', (context_today() - relativedelta(months=3)).strftime('%Y-%m-%d'))]"/>
+                        date="transaction_date" default_period="last_three_months"/>
                 <group expand="0" string="Group By">
                     <filter string="Vehicle" name="group_product" context="{'group_by': 'product_id'}"/>
                     <filter string="Type" name="group_type" context="{'group_by': 'transaction_type'}"/>
