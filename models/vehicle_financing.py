@@ -1,5 +1,6 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
+from markupsafe import Markup
 from dateutil.relativedelta import relativedelta
 from datetime import date
 import logging
@@ -216,7 +217,6 @@ class ProductTemplate(models.Model):
             (payable_line + vendor_bill_payable_line).reconcile()
         
         # Add a note to the vendor bill for reference
-        from markupsafe import Markup
         vendor_bill.message_post(
             body=Markup('<b>Floor Plan Financing Applied</b><br/>'
                    'Amount: %s<br/>'
