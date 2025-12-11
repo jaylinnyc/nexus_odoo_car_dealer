@@ -1436,9 +1436,10 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
             payment.action_post()
             
             # Reconcile payment with journal entry
-            # Find the credit line in journal entry and debit line in payment
+            # In Odoo, payments create their own journal entries (move_id)
+            # Find the credit line in our paydown journal entry and debit line in payment's move
             credit_line = journal_entry.line_ids.filtered(lambda l: l.credit > 0 and l.account_id == bank_account)
-            payment_line = payment.line_ids.filtered(lambda l: l.debit > 0 and l.account_id == bank_account)
+            payment_line = payment.move_id.line_ids.filtered(lambda l: l.debit > 0 and l.account_id == bank_account)
             
             if credit_line and payment_line:
                 (credit_line + payment_line).reconcile()
