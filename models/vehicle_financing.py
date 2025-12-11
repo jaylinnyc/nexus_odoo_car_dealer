@@ -1282,6 +1282,16 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
         default=False,
         help='If checked, will create a payment record and reconcile with the journal entry'
     )
+    is_full_payoff = fields.Boolean(
+        string='Full Payoff',
+        default=False,
+        help='Check this box to pay off the entire financing balance (e.g., when vehicle is sold)'
+    )
+    sale_order_id = fields.Many2one(
+        'sale.order',
+        string='Related Sale Order',
+        help='Optional: Link to the sale order if this payoff is related to a vehicle sale'
+    )
     company_id = fields.Many2one(
         'res.company',
         default=lambda self: self.env.company,
@@ -1302,6 +1312,12 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
                 wizard.current_balance = wizard.product_id.financing_balance
             else:
                 wizard.current_balance = 0
+
+    @api.onchange('is_full_payoff')
+    def _onchange_is_full_payoff(self):
+        """Auto-populate paydown amount with current balance when full payoff is checked."""
+        if self.is_full_payoff and self.product_id:
+            self.paydown_amount = self.product_id.financing_balance
 
     @api.constrains('paydown_amount', 'product_id')
     def _check_paydown_amount(self):
@@ -1443,17 +1459,22 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
                 self.payment_journal_id.name
             )
         
+        sale_order_info = ''
+        if self.sale_order_id:
+            sale_order_info = '<br/>Sale Order: %s' % self.sale_order_id.name
+        
         product.message_post(
             body=Markup('<b>Floor Plan Paydown Applied</b><br/>'
                    'Amount: %s<br/>'
                    'Date: %s<br/>'
                    'New Balance: %s<br/>'
-                   'Journal Entry: %s%s%s') % (
+                   'Journal Entry: %s%s%s%s') % (
                 self.paydown_amount,
                 self.paydown_date,
                 new_balance,
                 journal_entry.name,
                 payment_info,
+                sale_order_info,
                 '<br/>Status: Paid Off' if new_balance <= 0 else ''
             ),
             subject=_('Floor Plan Paydown')

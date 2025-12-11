@@ -13,6 +13,7 @@
                         <field name="company_id" invisible="1"/>
                     </group>
                     <group>
+                        <field name="is_full_payoff" widget="boolean_toggle"/>
                         <field name="paydown_amount" widget="monetary"/>
                         <field name="paydown_date"/>
                     </group>
@@ -22,6 +23,9 @@
                         <field name="payment_journal_id" placeholder="Select bank/cash account..."/>
                         <field name="create_payment" widget="boolean_toggle"/>
                     </group>
+                    <group string="Sale Information (Optional)">
+                        <field name="sale_order_id" placeholder="Link to sale order if vehicle was sold..." domain="[('order_line.product_template_id', '=', product_id)]"/>
+                    </group>
                 </group>
                 <group>
                     <field name="notes" placeholder="Optional notes about this paydown..."/>
@@ -29,9 +33,11 @@
                 <div class="alert alert-info" role="alert">
                     <strong>Payment Processing:</strong>
                     <p>
+                        • <strong>Full Payoff:</strong> Check to automatically set the amount to current balance (e.g., when vehicle is sold)<br/>
                         • <strong>Payment Journal:</strong> Select the bank/cash account to deduct from<br/>
                         • <strong>Create Payment Record:</strong> Check to automatically create and reconcile a payment record<br/>
-                        • If unchecked, you can manually reconcile the journal entry later
+                        • <strong>Sale Order:</strong> Optional reference to link this payoff to a vehicle sale<br/>
+                        • If Create Payment is unchecked, you can manually reconcile the journal entry later
                     </p>
                 </div>
                 <footer>
