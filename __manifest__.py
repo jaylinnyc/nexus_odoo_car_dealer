@@ -1,7 +1,7 @@
 {
     'name': 'Car Dealer Customizations',
     'summary': 'Car dealer enhancements: first order line field, vehicle management, etc.',
-    'version': '1.0.8',
+    'version': '1.0.9',
     'license': 'LGPL-3',
     'category': 'Sales/Sales',          # or 'Automotive' if you prefer
     'description': """
@@ -47,6 +47,7 @@ Car Dealer Customizations
         'views/vehicle_show.xml',
         'views/financing_views.xml',
         'views/financing_topup_wizard.xml',
+        'views/financing_transaction_views.xml',
     ],
 
     # Only if you created new models and want demo data

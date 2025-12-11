@@ -85,6 +85,13 @@
                                     invisible="financing_count == 0">
                                 <field name="financing_count" widget="statinfo" string="Interest Bills"/>
                             </button>
+                            <button name="action_view_financing_transactions" 
+                                    type="object"
+                                    class="oe_stat_button"
+                                    icon="fa-list"
+                                    invisible="financing_transaction_count == 0">
+                                <field name="financing_transaction_count" widget="statinfo" string="Transactions"/>
+                            </button>
                         </div>
                         <group invisible="financing_type != 'internal'">
                             <button name="action_setup_floor_plan_financing" 
