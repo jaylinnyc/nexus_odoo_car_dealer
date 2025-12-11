@@ -212,10 +212,23 @@ class ProductTemplate(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Override create to automatically set internal reference from VIN"""
+        """Override create to automatically set internal reference from VIN and product name from vehicle details"""
         for vals in vals_list:
             if vals.get('vin') and not vals.get('default_code'):
                 vals['default_code'] = vals['vin']
+            
+            # Auto-set product name for vehicles: [year] [make] [model]
+            if not vals.get('name'):
+                categ_id = vals.get('categ_id')
+                if categ_id:
+                    category = self.env['product.category'].browse(categ_id)
+                    if category.name == 'Vehicles':
+                        year = vals.get('year')
+                        make = vals.get('make')
+                        model = vals.get('model')
+                        if year and make and model:
+                            vals['name'] = f"{year} {make} {model}"
+        
         return super(ProductTemplate, self).create(vals_list)
 
     def write(self, vals):
