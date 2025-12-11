@@ -1279,7 +1279,7 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
     )
     create_payment = fields.Boolean(
         string='Create Payment Record',
-        default=False,
+        default=True,
         help='If checked, will create a payment record and reconcile with the journal entry'
     )
     is_full_payoff = fields.Boolean(
@@ -1318,6 +1318,17 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
         """Auto-populate paydown amount with current balance when full payoff is checked."""
         if self.is_full_payoff and self.product_id:
             self.paydown_amount = self.product_id.financing_balance
+
+    @api.onchange('paydown_amount')
+    def _onchange_paydown_amount(self):
+        """Auto-check full payoff when paydown amount equals current balance."""
+        if self.product_id and self.paydown_amount:
+            # Check if amount equals balance (with small tolerance for rounding)
+            if abs(self.paydown_amount - self.product_id.financing_balance) < 0.01:
+                self.is_full_payoff = True
+            elif self.is_full_payoff and abs(self.paydown_amount - self.product_id.financing_balance) >= 0.01:
+                # Uncheck if user manually changes amount away from full balance
+                self.is_full_payoff = False
 
     @api.constrains('paydown_amount', 'product_id')
     def _check_paydown_amount(self):
