@@ -1402,7 +1402,7 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
                 'amount': self.paydown_amount,
                 'date': self.paydown_date,
                 'journal_id': self.payment_journal_id.id,
-                'ref': paydown_ref,
+                'payment_reference': paydown_ref,
                 'currency_id': self.currency_id.id,
             }
             payment = self.env['account.payment'].create(payment_vals)
