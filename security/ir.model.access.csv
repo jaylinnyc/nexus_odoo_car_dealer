@@ -5,3 +5,5 @@ access_vehicle_financing_transaction_user,vehicle.financing.transaction.user,mod
 access_vehicle_financing_transaction_manager,vehicle.financing.transaction.manager,model_vehicle_financing_transaction,base.group_system,1,1,1,1
 access_vehicle_financing_topup_wizard_user,vehicle.financing.topup.wizard.user,model_vehicle_financing_topup_wizard,base.group_user,1,1,1,1
 access_vehicle_financing_topup_wizard_manager,vehicle.financing.topup.wizard.manager,model_vehicle_financing_topup_wizard,base.group_system,1,1,1,1
+access_vehicle_financing_paydown_wizard_user,vehicle.financing.paydown.wizard.user,model_vehicle_financing_paydown_wizard,base.group_user,1,1,1,1
+access_vehicle_financing_paydown_wizard_manager,vehicle.financing.paydown.wizard.manager,model_vehicle_financing_paydown_wizard,base.group_system,1,1,1,1

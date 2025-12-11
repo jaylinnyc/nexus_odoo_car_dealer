@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_vehicle_financing_paydown_wizard_form" model="ir.ui.view">
+        <field name="name">vehicle.financing.paydown.wizard.form</field>
+        <field name="model">vehicle.financing.paydown.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Pay Down Floor Plan Financing">
+                <group>
+                    <group>
+                        <field name="product_id" readonly="1"/>
+                        <field name="current_balance" widget="monetary" readonly="1"/>
+                        <field name="currency_id" invisible="1"/>
+                    </group>
+                    <group>
+                        <field name="paydown_amount" widget="monetary"/>
+                        <field name="paydown_date"/>
+                    </group>
+                </group>
+                <group>
+                    <field name="notes" placeholder="Optional notes about this paydown..."/>
+                </group>
+                <div class="alert alert-info" role="alert">
+                    <strong>Payment Processing:</strong>
+                    <p>This will create a journal entry reducing the floor plan liability. 
+                    You should reconcile the journal entry with your actual bank payment.</p>
+                </div>
+                <footer>
+                    <button string="Apply Paydown" name="action_apply_paydown" type="object" class="oe_highlight"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

@@ -84,7 +84,7 @@ class VehicleFinancing(models.Model):
 class VehicleFinancingTransaction(models.Model):
     _name = 'vehicle.financing.transaction'
     _description = 'Vehicle Financing Transaction History'
-    _order = 'product_id, transaction_date desc'
+    _order = 'product_id, transaction_date asc, id asc'
 
     product_id = fields.Many2one(
         'product.template',
@@ -424,6 +424,36 @@ class ProductTemplate(models.Model):
                 'default_topup_amount': total_unpaid,  # Suggest full unpaid amount
                 'unpaid_bill_count': len(unpaid_bills),
                 'total_unpaid_amount': total_unpaid,
+            },
+        }
+
+    def action_paydown_floor_plan_financing(self):
+        """Record a payment towards the floor plan financing balance.
+        
+        Opens a wizard to enter the paydown amount and records the transaction.
+        """
+        self.ensure_one()
+        
+        if self.financing_type != 'internal':
+            raise UserError(_('Paydown is only available for internal financing.'))
+        
+        if not self.financing_journal_entry_id:
+            raise UserError(_('Please set up floor plan financing first.'))
+        
+        if self.financing_balance <= 0:
+            raise UserError(_('There is no outstanding financing balance to pay down.'))
+        
+        # Return wizard to enter paydown amount
+        return {
+            'name': _('Pay Down Floor Plan Financing'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'vehicle.financing.paydown.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_product_id': self.id,
+                'default_paydown_amount': self.financing_balance,  # Suggest full balance
+                'current_balance': self.financing_balance,
             },
         }
 
@@ -1213,3 +1243,166 @@ class VehicleFinancingTopupWizard(models.TransientModel):
             ),
             subject=_('Supplemental Interest')
         )
+
+
+class VehicleFinancingPaydownWizard(models.TransientModel):
+    _name = 'vehicle.financing.paydown.wizard'
+    _description = 'Pay Down Floor Plan Financing Wizard'
+
+    product_id = fields.Many2one(
+        'product.template',
+        string='Vehicle',
+        required=True,
+        readonly=True
+    )
+    paydown_amount = fields.Monetary(
+        string='Paydown Amount',
+        currency_field='currency_id',
+        required=True,
+        help='Amount to pay towards the floor plan financing balance'
+    )
+    currency_id = fields.Many2one(
+        'res.currency',
+        string='Currency',
+        default=lambda self: self.env.company.currency_id
+    )
+    paydown_date = fields.Date(
+        string='Paydown Date',
+        required=True,
+        default=fields.Date.today
+    )
+    notes = fields.Text(string='Notes')
+    
+    current_balance = fields.Monetary(
+        string='Current Balance',
+        currency_field='currency_id',
+        compute='_compute_current_balance'
+    )
+
+    @api.depends('product_id')
+    def _compute_current_balance(self):
+        for wizard in self:
+            if wizard.product_id:
+                wizard.current_balance = wizard.product_id.financing_balance
+            else:
+                wizard.current_balance = 0
+
+    @api.constrains('paydown_amount', 'product_id')
+    def _check_paydown_amount(self):
+        for wizard in self:
+            if wizard.paydown_amount <= 0:
+                raise UserError(_('Paydown amount must be greater than zero.'))
+            if wizard.paydown_amount > wizard.product_id.financing_balance:
+                raise UserError(_(
+                    'Paydown amount ($%s) cannot exceed the current financing balance ($%s).'
+                ) % (wizard.paydown_amount, wizard.product_id.financing_balance))
+
+    def action_apply_paydown(self):
+        """Create journal entry for paydown and reduce financing balance."""
+        self.ensure_one()
+        
+        product = self.product_id
+        
+        # Get the liability account
+        liability_account = product.financing_liability_account_id
+        if not liability_account:
+            liability_account = self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False)
+        
+        if not liability_account:
+            raise UserError(_('Please configure the Floor Plan Payable account.'))
+        
+        # Get the default journal
+        journal = self.env['account.journal'].search([
+            ('type', '=', 'general'),
+            ('company_id', '=', self.env.company.id)
+        ], limit=1)
+        
+        if not journal:
+            raise UserError(_('No general journal found.'))
+        
+        # Prepare analytic distribution
+        analytic_dist = {str(product.analytic_account_id.id): 100.0} if product.analytic_account_id else {}
+        
+        # Create journal entry for paydown
+        # Debit: Floor Plan Payable (reduces liability)
+        # Credit: Cash/Bank (represents payment made)
+        
+        paydown_ref = _('Floor Plan Paydown - %s') % product.name
+        
+        journal_entry_vals = {
+            'move_type': 'entry',
+            'journal_id': journal.id,
+            'date': self.paydown_date,
+            'ref': paydown_ref,
+            'narration': _('Floor plan financing paydown\nVehicle: %s\nPaydown Amount: %s%s') % (
+                product.name,
+                self.paydown_amount,
+                '\n\n' + self.notes if self.notes else ''
+            ),
+            'line_ids': [
+                # Debit: Floor Plan Payable (reduces liability)
+                (0, 0, {
+                    'name': _('Floor plan paydown - %s') % product.name,
+                    'account_id': liability_account.id,
+                    'partner_id': product.financing_partner_id.id,
+                    'debit': self.paydown_amount,
+                    'credit': 0,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+                # Credit: Cash/Bank - user should reconcile this with actual payment
+                (0, 0, {
+                    'name': _('Floor plan paydown - %s') % product.name,
+                    'account_id': self.env.company.account_journal_payment_debit_account_id.id,
+                    'debit': 0,
+                    'credit': self.paydown_amount,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+            ],
+        }
+        
+        journal_entry = self.env['account.move'].create(journal_entry_vals)
+        journal_entry.action_post()
+        
+        # Create financing transaction record
+        new_balance = product.financing_balance - self.paydown_amount
+        self.env['vehicle.financing.transaction'].create({
+            'product_id': product.id,
+            'transaction_date': self.paydown_date,
+            'transaction_type': 'paydown',
+            'amount': -self.paydown_amount,  # Negative for paydown
+            'balance_after': new_balance,
+            'journal_entry_id': journal_entry.id,
+            'notes': self.notes or _('Floor plan financing paydown'),
+        })
+        
+        # Update financing balance and status
+        vals = {'financing_balance': new_balance}
+        if new_balance <= 0:
+            vals['financing_status'] = 'paid_off'
+        
+        product.write(vals)
+        
+        # Add message to product
+        product.message_post(
+            body=Markup('<b>Floor Plan Paydown Applied</b><br/>'
+                   'Amount: %s<br/>'
+                   'Date: %s<br/>'
+                   'New Balance: %s<br/>'
+                   'Journal Entry: %s%s') % (
+                self.paydown_amount,
+                self.paydown_date,
+                new_balance,
+                journal_entry.name,
+                '<br/>Status: Paid Off' if new_balance <= 0 else ''
+            ),
+            subject=_('Floor Plan Paydown')
+        )
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'account.move',
+            'res_id': journal_entry.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+

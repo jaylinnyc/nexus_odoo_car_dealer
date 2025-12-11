@@ -103,6 +103,11 @@
                                     type="object" 
                                     class="btn-secondary"
                                     invisible="not financing_journal_entry_id or financing_type != 'internal'"/>
+                            <button name="action_paydown_floor_plan_financing" 
+                                    string="Pay Down Financing" 
+                                    type="object" 
+                                    class="btn-secondary"
+                                    invisible="not financing_journal_entry_id or financing_type != 'internal' or financing_balance <= 0"/>
                         </group>
                         <field name="financing_ids" invisible="financing_type == 'none'">
                             <list create="false" edit="false" delete="state == 'draft'">
