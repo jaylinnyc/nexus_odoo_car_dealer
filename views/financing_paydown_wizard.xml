@@ -10,6 +10,7 @@
                         <field name="product_id" readonly="1"/>
                         <field name="current_balance" widget="monetary" readonly="1"/>
                         <field name="currency_id" invisible="1"/>
+                        <field name="company_id" invisible="1"/>
                     </group>
                     <group>
                         <field name="paydown_amount" widget="monetary"/>
@@ -17,12 +18,21 @@
                     </group>
                 </group>
                 <group>
+                    <group string="Payment Options">
+                        <field name="payment_journal_id" placeholder="Select bank/cash account..."/>
+                        <field name="create_payment" widget="boolean_toggle"/>
+                    </group>
+                </group>
+                <group>
                     <field name="notes" placeholder="Optional notes about this paydown..."/>
                 </group>
                 <div class="alert alert-info" role="alert">
                     <strong>Payment Processing:</strong>
-                    <p>This will create a journal entry reducing the floor plan liability. 
-                    You should reconcile the journal entry with your actual bank payment.</p>
+                    <p>
+                        • <strong>Payment Journal:</strong> Select the bank/cash account to deduct from<br/>
+                        • <strong>Create Payment Record:</strong> Check to automatically create and reconcile a payment record<br/>
+                        • If unchecked, you can manually reconcile the journal entry later
+                    </p>
                 </div>
                 <footer>
                     <button string="Apply Paydown" name="action_apply_paydown" type="object" class="oe_highlight"/>

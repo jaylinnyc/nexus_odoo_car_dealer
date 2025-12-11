@@ -1271,6 +1271,22 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
         required=True,
         default=fields.Date.today
     )
+    payment_journal_id = fields.Many2one(
+        'account.journal',
+        string='Payment Journal',
+        domain="[('type', 'in', ['bank', 'cash']), ('company_id', '=', company_id)]",
+        help='Bank or cash journal to record the payment from'
+    )
+    create_payment = fields.Boolean(
+        string='Create Payment Record',
+        default=False,
+        help='If checked, will create a payment record and reconcile with the journal entry'
+    )
+    company_id = fields.Many2one(
+        'res.company',
+        default=lambda self: self.env.company,
+        readonly=True
+    )
     notes = fields.Text(string='Notes')
     
     current_balance = fields.Monetary(
@@ -1320,6 +1336,19 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
         if not journal:
             raise UserError(_('No general journal found.'))
         
+        # Determine the bank/cash account to credit
+        if self.payment_journal_id:
+            # Use the default debit account from the selected payment journal
+            bank_account = self.payment_journal_id.default_account_id
+            if not bank_account:
+                raise UserError(_('The selected payment journal does not have a default account configured.'))
+        else:
+            # Fall back to company default
+            bank_account = self.env.company.account_journal_payment_debit_account_id
+        
+        if not bank_account:
+            raise UserError(_('Please select a payment journal or configure a default payment account.'))
+        
         # Prepare analytic distribution
         analytic_dist = {str(product.analytic_account_id.id): 100.0} if product.analytic_account_id else {}
         
@@ -1349,10 +1378,10 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
                     'credit': 0,
                     'analytic_distribution': analytic_dist or False,
                 }),
-                # Credit: Cash/Bank - user should reconcile this with actual payment
+                # Credit: Cash/Bank from selected journal
                 (0, 0, {
                     'name': _('Floor plan paydown - %s') % product.name,
-                    'account_id': self.env.company.account_journal_payment_debit_account_id.id,
+                    'account_id': bank_account.id,
                     'debit': 0,
                     'credit': self.paydown_amount,
                     'analytic_distribution': analytic_dist or False,
@@ -1362,6 +1391,30 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
         
         journal_entry = self.env['account.move'].create(journal_entry_vals)
         journal_entry.action_post()
+        
+        # Optionally create and reconcile payment record
+        payment = None
+        if self.create_payment and self.payment_journal_id:
+            payment_vals = {
+                'payment_type': 'outbound',
+                'partner_type': 'supplier',
+                'partner_id': product.financing_partner_id.id,
+                'amount': self.paydown_amount,
+                'date': self.paydown_date,
+                'journal_id': self.payment_journal_id.id,
+                'ref': paydown_ref,
+                'currency_id': self.currency_id.id,
+            }
+            payment = self.env['account.payment'].create(payment_vals)
+            payment.action_post()
+            
+            # Reconcile payment with journal entry
+            # Find the credit line in journal entry and debit line in payment
+            credit_line = journal_entry.line_ids.filtered(lambda l: l.credit > 0 and l.account_id == bank_account)
+            payment_line = payment.line_ids.filtered(lambda l: l.debit > 0 and l.account_id == bank_account)
+            
+            if credit_line and payment_line:
+                (credit_line + payment_line).reconcile()
         
         # Create financing transaction record
         new_balance = product.financing_balance - self.paydown_amount
@@ -1383,16 +1436,24 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
         product.write(vals)
         
         # Add message to product
+        payment_info = ''
+        if payment:
+            payment_info = '<br/>Payment: %s<br/>Payment Journal: %s' % (
+                payment.name,
+                self.payment_journal_id.name
+            )
+        
         product.message_post(
             body=Markup('<b>Floor Plan Paydown Applied</b><br/>'
                    'Amount: %s<br/>'
                    'Date: %s<br/>'
                    'New Balance: %s<br/>'
-                   'Journal Entry: %s%s') % (
+                   'Journal Entry: %s%s%s') % (
                 self.paydown_amount,
                 self.paydown_date,
                 new_balance,
                 journal_entry.name,
+                payment_info,
                 '<br/>Status: Paid Off' if new_balance <= 0 else ''
             ),
             subject=_('Floor Plan Paydown')
