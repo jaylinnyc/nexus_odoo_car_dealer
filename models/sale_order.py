@@ -78,9 +78,9 @@ class SaleOrderLine(models.Model):
             if standard_tax and luxury_tax:
                 # Apply luxury tax if price exceeds $50,000, otherwise standard tax
                 if self.price_unit > 50000:
-                    self.tax_id = [(6, 0, [luxury_tax.id])]
+                    self.tax_ids = [(6, 0, [luxury_tax.id])]
                 else:
-                    self.tax_id = [(6, 0, [standard_tax.id])]
+                    self.tax_ids = [(6, 0, [standard_tax.id])]
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -93,9 +93,9 @@ class SaleOrderLine(models.Model):
                 
                 if standard_tax and luxury_tax:
                     if line.price_unit > 50000:
-                        line.tax_id = [(6, 0, [luxury_tax.id])]
+                        line.tax_ids = [(6, 0, [luxury_tax.id])]
                     else:
-                        line.tax_id = [(6, 0, [standard_tax.id])]
+                        line.tax_ids = [(6, 0, [standard_tax.id])]
         return lines
 
     def write(self, vals):
@@ -111,7 +111,7 @@ class SaleOrderLine(models.Model):
                     
                     if standard_tax and luxury_tax:
                         if line.price_unit > 50000:
-                            line.tax_id = [(6, 0, [luxury_tax.id])]
+                            line.tax_ids = [(6, 0, [luxury_tax.id])]
                         else:
-                            line.tax_id = [(6, 0, [standard_tax.id])]
+                            line.tax_ids = [(6, 0, [standard_tax.id])]
         return res
