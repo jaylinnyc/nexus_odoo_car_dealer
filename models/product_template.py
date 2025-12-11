@@ -210,6 +210,13 @@ class ProductTemplate(models.Model):
                 product.total_bills_amount = 0
                 product.total_bills_residual = 0
 
+    @api.onchange('year', 'make', 'model', 'categ_id')
+    def _onchange_vehicle_details(self):
+        """Auto-update product name when year, make, or model changes for vehicles"""
+        if self.categ_id and self.categ_id.name == 'Vehicles':
+            if self.year and self.make and self.model:
+                self.name = f"{self.year} {self.make} {self.model}"
+
     @api.model_create_multi
     def create(self, vals_list):
         """Override create to automatically set internal reference from VIN and product name from vehicle details"""
