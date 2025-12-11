@@ -175,6 +175,9 @@ class ProductTemplate(models.Model):
         if not self.financing_partner_id:
             raise UserError(_('Please set the financing partner first.'))
         
+        if not self.financing_start_date:
+            raise UserError(_('Please set the financing start date first.'))
+        
         if self.financing_journal_entry_id:
             raise UserError(_('Floor plan financing has already been set up for this vehicle.'))
         

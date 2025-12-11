@@ -98,16 +98,6 @@
                                     type="object" 
                                     class="oe_highlight"
                                     invisible="financing_status != 'active' or financing_type != 'internal' or not financing_start_date or not financing_journal_entry_id"/>
-                            <button name="action_topup_floor_plan_financing" 
-                                    string="Top-Up Financing" 
-                                    type="object" 
-                                    class="btn-secondary"
-                                    invisible="not financing_journal_entry_id or financing_type != 'internal'"/>
-                            <button name="action_paydown_floor_plan_financing" 
-                                    string="Pay Down Financing" 
-                                    type="object" 
-                                    class="btn-secondary"
-                                    invisible="not financing_journal_entry_id or financing_type != 'internal' or financing_balance &lt;= 0"/>
                         </group>
                         <field name="financing_ids" invisible="financing_type == 'none'">
                             <list create="false" edit="false" delete="state == 'draft'">
@@ -118,6 +108,18 @@
                             </list>
                         </field>
                         <group string="Financing Transaction History" invisible="financing_type != 'internal'">
+                            <group>
+                                <button name="action_topup_floor_plan_financing" 
+                                        string="Top-Up Financing" 
+                                        type="object" 
+                                        class="btn-secondary"
+                                        invisible="not financing_journal_entry_id or financing_type != 'internal'"/>
+                                <button name="action_paydown_floor_plan_financing" 
+                                        string="Pay Down Financing" 
+                                        type="object" 
+                                        class="btn-secondary"
+                                        invisible="not financing_journal_entry_id or financing_type != 'internal' or financing_balance &lt;= 0"/>
+                            </group>
                             <field name="financing_transaction_ids" nolabel="1">
                                 <list create="false" edit="false" delete="false"
                                       decoration-success="transaction_type == 'initial'"
