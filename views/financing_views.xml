@@ -112,6 +112,20 @@
                                 <field name="state"/>
                             </list>
                         </field>
+                        <group string="Financing Transaction History" invisible="financing_type != 'internal'">
+                            <field name="financing_transaction_ids" nolabel="1">
+                                <list create="false" edit="false" delete="false"
+                                      decoration-success="transaction_type == 'initial'"
+                                      decoration-info="transaction_type == 'topup'"
+                                      decoration-warning="transaction_type == 'paydown'">
+                                    <field name="transaction_date"/>
+                                    <field name="transaction_type"/>
+                                    <field name="amount" widget="monetary" sum="Total"/>
+                                    <field name="balance_after" widget="monetary"/>
+                                    <field name="notes" optional="hide"/>
+                                </list>
+                            </field>
+                        </group>
                     </page>
                 </xpath>
             </field>
