@@ -20,7 +20,7 @@
                 </group>
                 <group>
                     <group string="Payment Options">
-                        <field name="payment_journal_id" placeholder="Select bank/cash account..."/>
+                        <field name="payment_journal_id" placeholder="Select bank/cash account..." required="1"/>
                         <field name="create_payment" widget="boolean_toggle"/>
                     </group>
                     <group string="Sale Information (Optional)">

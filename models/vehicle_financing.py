@@ -1363,18 +1363,14 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
         if not journal:
             raise UserError(_('No general journal found.'))
         
-        # Determine the bank/cash account to credit
-        if self.payment_journal_id:
-            # Use the default debit account from the selected payment journal
-            bank_account = self.payment_journal_id.default_account_id
-            if not bank_account:
-                raise UserError(_('The selected payment journal does not have a default account configured.'))
-        else:
-            # Fall back to company default
-            bank_account = self.env.company.account_journal_payment_debit_account_id
+        # Require payment journal selection (especially if create_payment is enabled)
+        if not self.payment_journal_id:
+            raise UserError(_('Please select a payment journal (bank/cash account) for this paydown.'))
         
+        # Determine the bank/cash account to credit
+        bank_account = self.payment_journal_id.default_account_id
         if not bank_account:
-            raise UserError(_('Please select a payment journal or configure a default payment account.'))
+            raise UserError(_('The selected payment journal does not have a default account configured.'))
         
         # Prepare analytic distribution
         analytic_dist = {str(product.analytic_account_id.id): 100.0} if product.analytic_account_id else {}
