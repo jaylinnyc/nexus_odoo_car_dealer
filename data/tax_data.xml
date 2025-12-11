@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+        <!-- Standard Sales Tax 6.35% -->
+        <record id="account_tax_sales_635" model="account.tax">
+            <field name="name">Sales Tax 6.35%</field>
+            <field name="amount_type">percent</field>
+            <field name="amount">6.35</field>
+            <field name="type_tax_use">sale</field>
+            <field name="active">True</field>
+            <field name="description">CT Sales Tax (Standard)</field>
+        </record>
+
+        <!-- Luxury Sales Tax 7.75% for vehicles over $50,000 -->
+        <record id="account_tax_sales_775" model="account.tax">
+            <field name="name">Sales Tax 7.75% (Luxury)</field>
+            <field name="amount_type">percent</field>
+            <field name="amount">7.75</field>
+            <field name="type_tax_use">sale</field>
+            <field name="active">True</field>
+            <field name="description">CT Sales Tax (Over $50K)</field>
+        </record>
+    </data>
+</odoo>

@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from markupsafe import Markup
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -61,4 +62,56 @@ class SaleOrder(models.Model):
                     self.name
                 )
             
+        return res
+
+class SaleOrderLine(models.Model):
+    _inherit = 'sale.order.line'
+
+    @api.onchange('product_id', 'price_unit')
+    def _onchange_product_id_auto_tax(self):
+        """Automatically set appropriate tax based on price threshold for vehicles."""
+        if self.product_id and self.product_template_id.categ_id.name == 'Vehicles':
+            # Get the tax records
+            standard_tax = self.env.ref('nexus_odoo_car_dealer.account_tax_sales_635', raise_if_not_found=False)
+            luxury_tax = self.env.ref('nexus_odoo_car_dealer.account_tax_sales_775', raise_if_not_found=False)
+            
+            if standard_tax and luxury_tax:
+                # Apply luxury tax if price exceeds $50,000, otherwise standard tax
+                if self.price_unit > 50000:
+                    self.tax_id = [(6, 0, [luxury_tax.id])]
+                else:
+                    self.tax_id = [(6, 0, [standard_tax.id])]
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Auto-apply tax on creation based on price."""
+        lines = super().create(vals_list)
+        for line in lines:
+            if line.product_template_id.categ_id.name == 'Vehicles':
+                standard_tax = self.env.ref('nexus_odoo_car_dealer.account_tax_sales_635', raise_if_not_found=False)
+                luxury_tax = self.env.ref('nexus_odoo_car_dealer.account_tax_sales_775', raise_if_not_found=False)
+                
+                if standard_tax and luxury_tax:
+                    if line.price_unit > 50000:
+                        line.tax_id = [(6, 0, [luxury_tax.id])]
+                    else:
+                        line.tax_id = [(6, 0, [standard_tax.id])]
+        return lines
+
+    def write(self, vals):
+        """Update tax when price changes."""
+        res = super().write(vals)
+        
+        # If price_unit is being updated, recalculate tax
+        if 'price_unit' in vals:
+            for line in self:
+                if line.product_template_id.categ_id.name == 'Vehicles':
+                    standard_tax = self.env.ref('nexus_odoo_car_dealer.account_tax_sales_635', raise_if_not_found=False)
+                    luxury_tax = self.env.ref('nexus_odoo_car_dealer.account_tax_sales_775', raise_if_not_found=False)
+                    
+                    if standard_tax and luxury_tax:
+                        if line.price_unit > 50000:
+                            line.tax_id = [(6, 0, [luxury_tax.id])]
+                        else:
+                            line.tax_id = [(6, 0, [standard_tax.id])]
         return res
