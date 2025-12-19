@@ -1,13 +1,19 @@
-from odoo import fields, models
+from odoo import api, fields, models
 
 import logging
 
 _logger = logging.getLogger(__name__)
 
+
 class CalendarEvent(models.Model):
     _inherit = 'calendar.event'
 
-    physical_product_id = fields.Many2one('product.product', string="Reserved Vehicle")
+    vehicle_template_id = fields.Many2one(
+        'product.template', 
+        string="Reserved Vehicle",
+        tracking=True,
+        help="The vehicle (product template) being reserved through this appointment"
+    )
     
     sale_order_id = fields.Many2one(
         'sale.order',
@@ -17,26 +23,25 @@ class CalendarEvent(models.Model):
         readonly=True
     )
 
+    @api.depends('sale_order_line_ids', 'sale_order_line_ids.order_id')
     def _compute_sale_order_id(self):
         for event in self:
-            _logger.info("Computing sale_order_id for Calendar Event ID %s", event.sale_order_line_ids)
-            # event.sale_order_id = event.sale_order_line_ids and event.sale_order_line_ids[0].order_id or False
             sale_order_line = event.sale_order_line_ids[:1]
             event.sale_order_id = sale_order_line.order_id if sale_order_line else False
-            _logger.info("Sale order lines linked to this event: %s", event.sale_order_id)
+            if event.sale_order_id:
+                _logger.info("Calendar Event %s linked to Sale Order %s", event.id, event.sale_order_id.name)
             
     def action_confirm_reservation_and_unpublish_product(self):
         """
-        Confirms the reservation and reduces the vehicle from stock.
+        Confirms the reservation and unpublishes the vehicle from website.
         """
         self.ensure_one()
-        product = self.physical_product_id
-        _logger.info("Confirming reservation and unpublishing product ID %s", product.id)
+        vehicle = self.vehicle_template_id
         
-
-        if not product:
-            _logger.warning("No physical product linked to Calendar Event ID %s", self.id)
+        if not vehicle:
+            _logger.warning("No vehicle linked to Calendar Event ID %s", self.id)
             return
         
-        product.product_tmpl_id.sudo().write({'website_published': False})
-        self.message_post(body=f"Vehicle **{product.display_name}** successfully reserved and **unpublished** from the website.")
+        _logger.info("Confirming reservation and unpublishing vehicle template ID %s", vehicle.id)
+        vehicle.sudo().write({'website_published': False})
+        self.message_post(body=f"Vehicle **{vehicle.display_name}** successfully reserved and **unpublished** from the website.")

@@ -24,6 +24,7 @@ Car Dealer Customizations
         'payment',
         'mail',
         'appointment',
+        'appointment_account_payment',  # for paid appointment flow
         'website_appointment_sale',
         'purchase',          # for vehicle purchase tracking
         'purchase_stock',    # for purchase operations
@@ -49,6 +50,7 @@ Car Dealer Customizations
         'views/financing_views.xml',
         'views/financing_topup_wizard.xml',
         'views/financing_paydown_wizard.xml',
+        'views/reserve_now_btn.xml',
     ],
 
     # Only if you created new models and want demo data
