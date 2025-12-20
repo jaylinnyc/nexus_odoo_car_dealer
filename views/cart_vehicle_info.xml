@@ -17,9 +17,9 @@
 
     <!-- Also show alert if user was redirected because vehicle already in cart -->
     <template id="cart_vehicle_already_reserved_alert" inherit_id="website_sale.cart" name="Vehicle Already Reserved Alert">
-        <xpath expr="//div[@id='wrap']//div[hasclass('oe_cart')]" position="before">
+        <xpath expr="//div[@id='shop_cart']" position="before">
             <t t-if="request.params.get('vehicle_already_in_cart')">
-                <div class="alert alert-warning alert-dismissible fade show mx-3 mt-3" role="alert">
+                <div class="alert alert-warning alert-dismissible fade show" role="alert">
                     <i class="fa fa-exclamation-triangle me-2"/>
                     <strong>Vehicle Already Reserved!</strong> 
                     This vehicle is already in your cart. Please complete checkout or remove it before making another reservation.
