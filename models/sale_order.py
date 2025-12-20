@@ -33,6 +33,31 @@ class SaleOrder(models.Model):
                 order.first_order_line_id = first_line
             else:
                 order.first_order_line_id = False
+
+    def _prepare_order_line_values(self, *args, calendar_booking_id=False, calendar_booking_tz=False, **kwargs):
+        """
+        Override to add reservation_vehicle_id from calendar.booking to the SOL.
+        This links the reserved vehicle to the cart line.
+        """
+        values = super()._prepare_order_line_values(
+            *args,
+            calendar_booking_id=calendar_booking_id,
+            calendar_booking_tz=calendar_booking_tz,
+            **kwargs,
+        )
+        
+        if calendar_booking_id:
+            booking_sudo = self.env['calendar.booking'].sudo().browse(calendar_booking_id)
+            if booking_sudo.vehicle_template_id:
+                values['reservation_vehicle_id'] = booking_sudo.vehicle_template_id.id
+                # Enhance the line description with vehicle info
+                vehicle = booking_sudo.vehicle_template_id
+                vehicle_info = f"\nVehicle: {vehicle.display_name}"
+                if values.get('name'):
+                    values['name'] = values['name'] + vehicle_info
+                _logger.info("Linked vehicle %s to SOL for booking %s", vehicle.display_name, booking_sudo.id)
+        
+        return values
                 
 
     def action_confirm(self):
@@ -66,6 +91,12 @@ class SaleOrder(models.Model):
 
 class SaleOrderLine(models.Model):
     _inherit = 'sale.order.line'
+
+    reservation_vehicle_id = fields.Many2one(
+        'product.template',
+        string="Reserved Vehicle",
+        help="The vehicle being reserved through this appointment booking"
+    )
 
     @api.onchange('product_id', 'price_unit')
     def _onchange_product_id_auto_tax(self):
