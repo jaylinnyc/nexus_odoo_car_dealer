@@ -26,17 +26,29 @@ class WebsiteAppointmentExtended(BaseController):
         if not vehicle_template_id:
             return False
         
-        # Get the current website sale order (cart)
-        website = request.env['website'].get_current_website()
-        cart = website.sale_get_order()
-        if not cart:
+        try:
+            # Get the current cart - try request.cart first (set by website_sale)
+            # or fall back to fetching from session
+            cart = getattr(request, 'cart', None)
+            if not cart:
+                # Try to get cart from session
+                cart_id = request.session.get('website_sale_cart_id')
+                if cart_id:
+                    cart = request.env['sale.order'].sudo().browse(cart_id)
+                    if not cart.exists():
+                        cart = None
+            
+            if not cart:
+                return False
+            
+            # Check if any SOL in cart has this vehicle
+            existing_line = cart.order_line.filtered(
+                lambda l: l.reservation_vehicle_id and l.reservation_vehicle_id.id == int(vehicle_template_id)
+            )
+            return existing_line[:1] if existing_line else False
+        except Exception as e:
+            _logger.warning("Error checking vehicle in cart: %s", e)
             return False
-        
-        # Check if any SOL in cart has this vehicle
-        existing_line = cart.order_line.filtered(
-            lambda l: l.reservation_vehicle_id.id == int(vehicle_template_id)
-        )
-        return existing_line[:1] if existing_line else False
 
     def _check_vehicle_has_pending_booking(self, vehicle_template_id):
         """
