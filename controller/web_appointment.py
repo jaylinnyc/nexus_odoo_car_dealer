@@ -26,7 +26,9 @@ class WebsiteAppointmentExtended(BaseController):
         if not vehicle_template_id:
             return False
         
-        cart = request.cart
+        # Get the current website sale order (cart)
+        website = request.env['website'].get_current_website()
+        cart = website.sale_get_order()
         if not cart:
             return False
         
@@ -155,6 +157,13 @@ class WebsiteAppointmentExtended(BaseController):
             if booking:
                 booking.vehicle_template_id = int(vehicle_template_id)
                 _logger.info("Added vehicle_template_id %s to calendar.booking %s", vehicle_template_id, booking.id)
+                
+                # Also update the SOL that was created for this booking
+                # The SOL was created before we set vehicle_template_id, so we need to update it now
+                if booking.order_line_id:
+                    booking.order_line_id.reservation_vehicle_id = int(vehicle_template_id)
+                    _logger.info("Updated SOL %s with reservation_vehicle_id %s", booking.order_line_id.id, vehicle_template_id)
+                
                 # Clear from session
                 request.session.pop('vehicle_template_id', None)
         

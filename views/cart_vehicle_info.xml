@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Display reserved vehicle info in cart lines -->
+    <template id="cart_line_reserved_vehicle" inherit_id="website_sale.cart_lines" name="Cart Line Reserved Vehicle">
+        <xpath expr="//t[@t-call='website_sale.cart_line_description_following_lines']" position="after">
+            <t t-if="line.reservation_vehicle_id">
+                <div class="d-flex align-items-center gap-2 mt-2 p-2 bg-light rounded border-start border-primary border-3">
+                    <i class="fa fa-car text-primary"/>
+                    <div>
+                        <small class="text-muted d-block">Reserved Vehicle:</small>
+                        <strong class="text-primary" t-out="line.reservation_vehicle_id.display_name"/>
+                    </div>
+                </div>
+            </t>
+        </xpath>
+    </template>
+
+    <!-- Also show alert if user was redirected because vehicle already in cart -->
+    <template id="cart_vehicle_already_reserved_alert" inherit_id="website_sale.cart" name="Vehicle Already Reserved Alert">
+        <xpath expr="//div[@id='wrap']//div[hasclass('oe_cart')]" position="before">
+            <t t-if="request.params.get('vehicle_already_in_cart')">
+                <div class="alert alert-warning alert-dismissible fade show mx-3 mt-3" role="alert">
+                    <i class="fa fa-exclamation-triangle me-2"/>
+                    <strong>Vehicle Already Reserved!</strong> 
+                    This vehicle is already in your cart. Please complete checkout or remove it before making another reservation.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"/>
+                </div>
+            </t>
+        </xpath>
+    </template>
+</odoo>
