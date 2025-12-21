@@ -6,9 +6,9 @@ class ProductTemplate(models.Model):
 
     make = fields.Char(string='Make')
     model = fields.Char(string='Model')
-    year = fields.Integer(string='Year')
+    year = fields.Char(string='Year', size=4)  # Char to avoid numeric formatting (2,025)
     vin = fields.Char(string='VIN')
-    mileage = fields.Float(string='Mileage')
+    mileage = fields.Integer(string='Mileage')  # Integer to avoid decimal display
     analytic_account_id = fields.Many2one(
         'account.analytic.account',
         string='Analytic Account',
