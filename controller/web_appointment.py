@@ -129,12 +129,11 @@ class WebsiteAppointmentExtended(BaseController):
         vals = super()._get_extra_calendar_event_params(**kwargs)
         
         # Get vehicle_template_id from session (stored during appointment_type_page)
+        # NOTE: Don't clear session here - _handle_appointment_form_submission also needs it
         vehicle_template_id = request.session.get('vehicle_template_id')
         if vehicle_template_id:
             vals['vehicle_template_id'] = int(vehicle_template_id)
-            _logger.info("Adding vehicle_template_id %s to calendar event values", vehicle_template_id)
-            # Clear from session after use
-            request.session.pop('vehicle_template_id', None)
+            _logger.info("_get_extra_calendar_event_params: Adding vehicle_template_id %s to calendar event values", vehicle_template_id)
         
         return vals
 
