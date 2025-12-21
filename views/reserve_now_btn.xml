@@ -2,12 +2,9 @@
 <odoo>
     <template id="product_custom_add_to_cart" inherit_id="website_sale.cta_wrapper">
         <xpath expr="//a[@id='add_to_cart']" position="replace">
-            <t t-if="product.type == 'consu' and product.categ_id.name == 'Vehicles'">
-                <!-- Target consumable products in 'Vehicles' category -->
-                <!-- product.id here is product.template.id (each template = one unique vehicle) -->
-                
-                <!-- Check if vehicle is reserved (but still in stock - not yet delivered) -->
-                <t t-if="product.reservation_status == 'reserved' and product.qty_available > 0">
+            <t t-if="product.type == 'consu' and product.categ_id.name == 'Vehicles' and product.qty_available > 0">
+                <!-- Vehicle in stock - show Reserve Now or Reserved status -->
+                <t t-if="product.reservation_status == 'reserved'">
                     <!-- Vehicle is reserved - show disabled button with badge -->
                     <div class="d-flex flex-column gap-2 w-100">
                         <span class="badge bg-warning text-dark fs-6 py-2">
@@ -18,7 +15,7 @@
                         </button>
                     </div>
                 </t>
-                <t t-elif="product.qty_available > 0">
+                <t t-else="">
                     <!-- Vehicle is available - show Reserve Now button -->
                     <a id="reserve_now_btn" 
                        t-attf-href="/appointment/#{request.env.ref('nexus_odoo_car_dealer.appointment_type_vehicle_reservation').sudo().id}?vehicle_template_id=#{product.id}" 
@@ -26,10 +23,10 @@
                         <i class="fa fa-calendar me-2"/>Reserve Now
                     </a>
                 </t>
-                <!-- If qty_available <= 0, show nothing - Odoo's default out-of-stock display handles it -->
             </t>
             <t t-else="">
-                <!-- Fallback to original Add to Cart button -->
+                <!-- Non-vehicle OR out-of-stock vehicle: use standard Add to Cart button -->
+                <!-- Odoo's JS/CSS will handle showing "Out of Stock" when qty=0 -->
                 <a id="add_to_cart" role="button" href="#" t-attf-class="btn btn-primary js_check_product a-submit flex-grow-1" t-att-data-show-quantity="is_view_active('website_sale.product_quantity')" data-animation-selector=".o_wsale_product_images">
                     <i class="fa fa-shopping-cart me-2"/>
                     Add to cart
