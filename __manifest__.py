@@ -52,6 +52,7 @@ Car Dealer Customizations
         'views/financing_paydown_wizard.xml',
         'views/reserve_now_btn.xml',
         'views/cart_vehicle_info.xml',
+        'views/reservation_views.xml',
     ],
 
     # Only if you created new models and want demo data

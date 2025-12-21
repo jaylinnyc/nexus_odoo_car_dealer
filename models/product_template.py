@@ -263,3 +263,44 @@ class ProductTemplate(models.Model):
         if vals.get('vin') and not vals.get('default_code'):
             vals['default_code'] = vals['vin']
         return super(ProductTemplate, self).write(vals)
+
+    def action_unreserve_vehicle(self):
+        """Remove reservation from a vehicle, making it available again."""
+        self.ensure_one()
+        
+        if self.reservation_status == 'sold':
+            raise models.ValidationError(_('Cannot unreserve a vehicle that has been sold.'))
+        
+        if self.reservation_status != 'reserved':
+            raise models.ValidationError(_('This vehicle is not currently reserved.'))
+        
+        # Store info for the log message
+        previous_customer = self.reserved_by_partner_id.name if self.reserved_by_partner_id else 'Unknown'
+        
+        # Clear reservation
+        self.write({
+            'reservation_status': 'available',
+            'reserved_by_partner_id': False,
+            'reservation_date': False,
+        })
+        
+        # Re-publish on website if it was unpublished
+        if hasattr(self, 'is_published') and not self.is_published:
+            self.is_published = True
+        
+        # Post message to chatter
+        self.message_post(
+            body=_('Vehicle reservation removed. Previously reserved by: %s. Vehicle is now available for sale.') % previous_customer,
+            subject=_('Reservation Cancelled')
+        )
+        
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Reservation Removed'),
+                'message': _('Vehicle %s is now available for sale.') % self.display_name,
+                'type': 'success',
+                'sticky': False,
+            }
+        }
