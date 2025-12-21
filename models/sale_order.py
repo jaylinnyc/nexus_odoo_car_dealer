@@ -86,13 +86,31 @@ class SaleOrder(models.Model):
         else:
             _logger.info("No vehicle reservation appointment found for Sale Order ID %s", self.id)
         
-        # Mark vehicle financing as paid off when sold
+        # Process vehicle-related updates
         for line in self.order_line:
-            if line.product_template_id.financing_status == 'active':
-                line.product_template_id.financing_status = 'paid_off'
+            product = line.product_template_id
+            
+            # Mark vehicle financing as paid off when sold
+            if product.financing_status == 'active':
+                product.financing_status = 'paid_off'
                 _logger.info(
                     "Financing marked as paid off for vehicle %s (Sale Order %s)", 
-                    line.product_template_id.name,
+                    product.name,
+                    self.name
+                )
+            
+            # Mark vehicle as SOLD when the actual vehicle product is sold
+            # (not the reservation appointment service)
+            if (product.categ_id.name == 'Vehicles' and 
+                product.type == 'consu' and 
+                product.reservation_status in ('available', 'reserved')):
+                
+                product.sudo().write({
+                    'reservation_status': 'sold',
+                })
+                _logger.info(
+                    "Vehicle %s marked as SOLD (Sale Order %s)", 
+                    product.name,
                     self.name
                 )
             
