@@ -6,7 +6,7 @@
                 <!-- Target consumable products in 'Vehicles' category -->
                 <!-- product.id here is product.template.id (each template = one unique vehicle) -->
                 
-                <!-- Check reservation status -->
+                <!-- Check if vehicle is reserved (via appointment booking) -->
                 <t t-if="product.reservation_status == 'reserved'">
                     <!-- Vehicle is reserved - show disabled button with badge -->
                     <div class="d-flex flex-column gap-2 w-100">
@@ -18,19 +18,9 @@
                         </button>
                     </div>
                 </t>
-                <t t-elif="product.reservation_status == 'sold'">
-                    <!-- Vehicle is sold - show sold badge -->
-                    <div class="d-flex flex-column gap-2 w-100">
-                        <span class="badge bg-danger fs-6 py-2">
-                            <i class="fa fa-check-circle me-2"/>This Vehicle Has Been Sold
-                        </span>
-                        <button class="btn btn-secondary btn-lg w-100" disabled="disabled">
-                            <i class="fa fa-ban me-2"/>Sold
-                        </button>
-                    </div>
-                </t>
                 <t t-else="">
                     <!-- Vehicle is available - show Reserve Now button -->
+                    <!-- Note: Odoo handles out-of-stock display automatically when qty=0 -->
                     <a id="reserve_now_btn" 
                        t-attf-href="/appointment/#{request.env.ref('nexus_odoo_car_dealer.appointment_type_vehicle_reservation').sudo().id}?vehicle_template_id=#{product.id}" 
                        class="btn btn-primary btn-lg w-100">

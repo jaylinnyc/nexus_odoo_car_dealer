@@ -90,7 +90,7 @@ class SaleOrder(models.Model):
         for line in self.order_line:
             product = line.product_template_id
             
-            # Mark vehicle financing as paid off when sold
+            # Mark vehicle financing as paid off when vehicle is delivered/sold
             if product.financing_status == 'active':
                 product.financing_status = 'paid_off'
                 _logger.info(
@@ -99,20 +99,7 @@ class SaleOrder(models.Model):
                     self.name
                 )
             
-            # Mark vehicle as SOLD when the actual vehicle product is sold
-            # (not the reservation appointment service)
-            if (product.categ_id.name == 'Vehicles' and 
-                product.type == 'consu' and 
-                product.reservation_status in ('available', 'reserved')):
-                
-                product.sudo().write({
-                    'reservation_status': 'sold',
-                })
-                _logger.info(
-                    "Vehicle %s marked as SOLD (Sale Order %s)", 
-                    product.name,
-                    self.name
-                )
+            # Note: Odoo automatically shows vehicle as out-of-stock when qty_available reaches 0
             
         return res
 

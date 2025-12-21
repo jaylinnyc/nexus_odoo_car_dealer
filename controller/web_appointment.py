@@ -52,15 +52,17 @@ class WebsiteAppointmentExtended(BaseController):
 
     def _check_vehicle_already_reserved(self, vehicle_template_id):
         """
-        Check if the vehicle is already reserved or sold.
-        Returns the vehicle if reserved/sold, False otherwise.
+        Check if the vehicle is already reserved or out of stock.
+        Returns the vehicle if unavailable, False otherwise.
         """
         if not vehicle_template_id:
             return False
         
         vehicle = request.env['product.template'].sudo().browse(int(vehicle_template_id))
-        if vehicle.exists() and vehicle.reservation_status in ('reserved', 'sold'):
-            return vehicle
+        if vehicle.exists():
+            # Check reservation status or if out of stock
+            if vehicle.reservation_status == 'reserved' or vehicle.qty_available <= 0:
+                return vehicle
         return False
 
     def _check_vehicle_has_pending_booking(self, vehicle_template_id):
@@ -83,12 +85,13 @@ class WebsiteAppointmentExtended(BaseController):
         """Override to pass vehicle_template_id into the appointment flow context."""
         vehicle_template_id = kwargs.get('vehicle_template_id')
         
-        # Check if vehicle is already reserved or sold
+        # Check if vehicle is already reserved or out of stock
         if vehicle_template_id:
             reserved_vehicle = self._check_vehicle_already_reserved(vehicle_template_id)
             if reserved_vehicle:
+                status = 'out of stock' if reserved_vehicle.qty_available <= 0 else reserved_vehicle.reservation_status
                 _logger.info("Vehicle %s is already %s, redirecting to product page", 
-                           vehicle_template_id, reserved_vehicle.reservation_status)
+                           vehicle_template_id, status)
                 return request.redirect(f'/shop/product/{reserved_vehicle.id}?vehicle_not_available=1')
         
         # Check if vehicle is already in cart - redirect to cart if so

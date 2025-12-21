@@ -20,13 +20,6 @@
                         on <field name="reservation_date" readonly="1" class="oe_inline" nolabel="1" widget="date"/>
                     </span>
                 </div>
-                <div class="alert alert-success text-center mb-0" role="alert"
-                     invisible="reservation_status != 'sold' or categ_id.name != 'Vehicles'">
-                    <strong>
-                        <i class="fa fa-check-circle me-2"/>
-                        SOLD
-                    </strong>
-                </div>
             </xpath>
             
             <!-- Add Reservation Status fields and button to header area -->
@@ -49,8 +42,7 @@
                     <group>
                         <field name="reservation_status" widget="badge"
                                decoration-success="reservation_status == 'available'"
-                               decoration-warning="reservation_status == 'reserved'"
-                               decoration-info="reservation_status == 'sold'"/>
+                               decoration-warning="reservation_status == 'reserved'"/>
                         <field name="reserved_by_partner_id" 
                                invisible="reservation_status != 'reserved'"
                                readonly="1"/>

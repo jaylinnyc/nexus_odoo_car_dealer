@@ -17,13 +17,12 @@ class ProductTemplate(models.Model):
         readonly=True,
     )
     
-    # Reservation status for vehicles
+    # Reservation status for vehicles (only for tracking reservations via appointment booking)
     reservation_status = fields.Selection([
         ('available', 'Available'),
         ('reserved', 'Reserved'),
-        ('sold', 'Sold'),
     ], string='Reservation Status', default='available', tracking=True,
-       help='Tracks the reservation status of the vehicle')
+       help='Tracks if vehicle is reserved via appointment. Sold/Out of Stock is handled by Odoo inventory.')
     
     reserved_by_partner_id = fields.Many2one(
         'res.partner',
@@ -268,8 +267,8 @@ class ProductTemplate(models.Model):
         """Remove reservation from a vehicle, making it available again."""
         self.ensure_one()
         
-        if self.reservation_status == 'sold':
-            raise models.ValidationError(_('Cannot unreserve a vehicle that has been sold.'))
+        if self.qty_available <= 0:
+            raise models.ValidationError(_('Cannot unreserve a vehicle that has been sold (out of stock).'))
         
         if self.reservation_status != 'reserved':
             raise models.ValidationError(_('This vehicle is not currently reserved.'))
