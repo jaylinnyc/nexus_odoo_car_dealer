@@ -6,8 +6,8 @@
                 <!-- Target consumable products in 'Vehicles' category -->
                 <!-- product.id here is product.template.id (each template = one unique vehicle) -->
                 
-                <!-- Check if vehicle is reserved (via appointment booking) -->
-                <t t-if="product.reservation_status == 'reserved'">
+                <!-- Check if vehicle is reserved (but still in stock - not yet delivered) -->
+                <t t-if="product.reservation_status == 'reserved' and product.qty_available > 0">
                     <!-- Vehicle is reserved - show disabled button with badge -->
                     <div class="d-flex flex-column gap-2 w-100">
                         <span class="badge bg-warning text-dark fs-6 py-2">
@@ -18,15 +18,15 @@
                         </button>
                     </div>
                 </t>
-                <t t-else="">
+                <t t-elif="product.qty_available > 0">
                     <!-- Vehicle is available - show Reserve Now button -->
-                    <!-- Note: Odoo handles out-of-stock display automatically when qty=0 -->
                     <a id="reserve_now_btn" 
                        t-attf-href="/appointment/#{request.env.ref('nexus_odoo_car_dealer.appointment_type_vehicle_reservation').sudo().id}?vehicle_template_id=#{product.id}" 
                        class="btn btn-primary btn-lg w-100">
                         <i class="fa fa-calendar me-2"/>Reserve Now
                     </a>
                 </t>
+                <!-- If qty_available <= 0, show nothing - Odoo's default out-of-stock display handles it -->
             </t>
             <t t-else="">
                 <!-- Fallback to original Add to Cart button -->
