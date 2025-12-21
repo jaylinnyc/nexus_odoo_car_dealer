@@ -50,6 +50,19 @@ class WebsiteAppointmentExtended(BaseController):
             _logger.warning("Error checking vehicle in cart: %s", e)
             return False
 
+    def _check_vehicle_already_reserved(self, vehicle_template_id):
+        """
+        Check if the vehicle is already reserved or sold.
+        Returns the vehicle if reserved/sold, False otherwise.
+        """
+        if not vehicle_template_id:
+            return False
+        
+        vehicle = request.env['product.template'].sudo().browse(int(vehicle_template_id))
+        if vehicle.exists() and vehicle.reservation_status in ('reserved', 'sold'):
+            return vehicle
+        return False
+
     def _check_vehicle_has_pending_booking(self, vehicle_template_id):
         """
         Check if the vehicle has a pending (unpaid) calendar.booking.
@@ -69,9 +82,14 @@ class WebsiteAppointmentExtended(BaseController):
     def appointment_type_page(self, appointment_type_id, state=False, staff_user_id=False, resource_selected_id=False, **kwargs):
         """Override to pass vehicle_template_id into the appointment flow context."""
         vehicle_template_id = kwargs.get('vehicle_template_id')
-        _logger.info("=== appointment_type_page called ===")
-        _logger.info("vehicle_template_id from URL: %s", vehicle_template_id)
-        _logger.info("Current session vehicle_template_id: %s", request.session.get('vehicle_template_id'))
+        
+        # Check if vehicle is already reserved or sold
+        if vehicle_template_id:
+            reserved_vehicle = self._check_vehicle_already_reserved(vehicle_template_id)
+            if reserved_vehicle:
+                _logger.info("Vehicle %s is already %s, redirecting to product page", 
+                           vehicle_template_id, reserved_vehicle.reservation_status)
+                return request.redirect(f'/shop/product/{reserved_vehicle.id}?vehicle_not_available=1')
         
         # Check if vehicle is already in cart - redirect to cart if so
         if vehicle_template_id:
@@ -83,7 +101,7 @@ class WebsiteAppointmentExtended(BaseController):
         # Store vehicle_template_id in session so it persists through the multi-step flow
         if vehicle_template_id:
             request.session['vehicle_template_id'] = int(vehicle_template_id)
-            _logger.info("Stored vehicle_template_id %s in session", vehicle_template_id)
+            _logger.info("Stored vehicle_template_id %s in session for appointment flow", vehicle_template_id)
         
         response = super().appointment_type_page(
             appointment_type_id, state=state, staff_user_id=staff_user_id, 
@@ -150,10 +168,6 @@ class WebsiteAppointmentExtended(BaseController):
         """
         # Get vehicle_template_id from session before calling super
         vehicle_template_id = request.session.get('vehicle_template_id')
-        _logger.info("=== _handle_appointment_form_submission START ===")
-        _logger.info("vehicle_template_id from session: %s", vehicle_template_id)
-        _logger.info("appointment_type.has_payment_step: %s", appointment_type.has_payment_step)
-        _logger.info("customer: %s (ID: %s)", customer.name, customer.id)
         
         # Call parent which handles both paid and non-paid flows
         result = super()._handle_appointment_form_submission(
@@ -162,13 +176,9 @@ class WebsiteAppointmentExtended(BaseController):
             staff_user, asked_capacity, booking_line_values,
             extra_calendar_event_params or {},
         )
-        _logger.info("Parent _handle_appointment_form_submission returned: %s", type(result))
         
         # For paid appointments, the booking was just created - find it and add vehicle_template_id
         if vehicle_template_id and appointment_type.has_payment_step:
-            _logger.info("Looking for booking with partner_id=%s, appointment_type_id=%s, start=%s", 
-                        customer.id, appointment_type.id, date_start)
-            
             # Find the most recent booking for this customer and appointment type
             booking = request.env['calendar.booking'].sudo().search([
                 ('partner_id', '=', customer.id),
@@ -176,28 +186,17 @@ class WebsiteAppointmentExtended(BaseController):
                 ('start', '=', date_start),
             ], limit=1, order='id desc')
             
-            _logger.info("Found booking: %s (ID: %s)", booking, booking.id if booking else None)
-            
             if booking:
                 booking.vehicle_template_id = int(vehicle_template_id)
-                _logger.info("Set booking.vehicle_template_id = %s", booking.vehicle_template_id)
+                _logger.info("Added vehicle_template_id %s to calendar.booking %s", vehicle_template_id, booking.id)
                 
                 # Also update the SOL that was created for this booking
                 # The SOL was created before we set vehicle_template_id, so we need to update it now
-                _logger.info("booking.order_line_id: %s", booking.order_line_id)
                 if booking.order_line_id:
-                    _logger.info("Updating SOL %s with reservation_vehicle_id %s", booking.order_line_id.id, vehicle_template_id)
                     booking.order_line_id.reservation_vehicle_id = int(vehicle_template_id)
-                    _logger.info("SOL.reservation_vehicle_id after update: %s", booking.order_line_id.reservation_vehicle_id)
-                else:
-                    _logger.warning("No order_line_id found on booking %s!", booking.id)
+                    _logger.info("Updated SOL %s with reservation_vehicle_id %s", booking.order_line_id.id, vehicle_template_id)
                 
                 # Clear from session
                 request.session.pop('vehicle_template_id', None)
-        else:
-            _logger.info("Skipping vehicle update - vehicle_template_id: %s, has_payment_step: %s", 
-                        vehicle_template_id, appointment_type.has_payment_step)
-        
-        _logger.info("=== _handle_appointment_form_submission END ===")
         
         return result

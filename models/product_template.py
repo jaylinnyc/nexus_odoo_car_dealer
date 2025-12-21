@@ -17,6 +17,26 @@ class ProductTemplate(models.Model):
         readonly=True,
     )
     
+    # Reservation status for vehicles
+    reservation_status = fields.Selection([
+        ('available', 'Available'),
+        ('reserved', 'Reserved'),
+        ('sold', 'Sold'),
+    ], string='Reservation Status', default='available', tracking=True,
+       help='Tracks the reservation status of the vehicle')
+    
+    reserved_by_partner_id = fields.Many2one(
+        'res.partner',
+        string='Reserved By',
+        help='Customer who has reserved this vehicle',
+        tracking=True,
+    )
+    
+    reservation_date = fields.Datetime(
+        string='Reservation Date',
+        help='Date and time when the vehicle was reserved',
+    )
+    
     # Financing fields
     financing_type = fields.Selection([
         ('none', 'No Financing'),

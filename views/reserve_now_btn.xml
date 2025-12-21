@@ -5,11 +5,38 @@
             <t t-if="product.type == 'consu' and product.categ_id.name == 'Vehicles'">
                 <!-- Target consumable products in 'Vehicles' category -->
                 <!-- product.id here is product.template.id (each template = one unique vehicle) -->
-                <a id="reserve_now_btn" 
-                   t-attf-href="/appointment/#{request.env.ref('nexus_odoo_car_dealer.appointment_type_vehicle_reservation').sudo().id}?vehicle_template_id=#{product.id}" 
-                   class="btn btn-primary btn-lg w-100">
-                    <i class="fa fa-calendar me-2"/>Reserve Now
-                </a>
+                
+                <!-- Check reservation status -->
+                <t t-if="product.reservation_status == 'reserved'">
+                    <!-- Vehicle is reserved - show disabled button with badge -->
+                    <div class="d-flex flex-column gap-2 w-100">
+                        <span class="badge bg-warning text-dark fs-6 py-2">
+                            <i class="fa fa-lock me-2"/>This Vehicle is Reserved
+                        </span>
+                        <button class="btn btn-secondary btn-lg w-100" disabled="disabled">
+                            <i class="fa fa-calendar-times-o me-2"/>Not Available
+                        </button>
+                    </div>
+                </t>
+                <t t-elif="product.reservation_status == 'sold'">
+                    <!-- Vehicle is sold - show sold badge -->
+                    <div class="d-flex flex-column gap-2 w-100">
+                        <span class="badge bg-danger fs-6 py-2">
+                            <i class="fa fa-check-circle me-2"/>This Vehicle Has Been Sold
+                        </span>
+                        <button class="btn btn-secondary btn-lg w-100" disabled="disabled">
+                            <i class="fa fa-ban me-2"/>Sold
+                        </button>
+                    </div>
+                </t>
+                <t t-else="">
+                    <!-- Vehicle is available - show Reserve Now button -->
+                    <a id="reserve_now_btn" 
+                       t-attf-href="/appointment/#{request.env.ref('nexus_odoo_car_dealer.appointment_type_vehicle_reservation').sudo().id}?vehicle_template_id=#{product.id}" 
+                       class="btn btn-primary btn-lg w-100">
+                        <i class="fa fa-calendar me-2"/>Reserve Now
+                    </a>
+                </t>
             </t>
             <t t-else="">
                 <!-- Fallback to original Add to Cart button -->

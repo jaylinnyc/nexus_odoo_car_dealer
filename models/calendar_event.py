@@ -33,7 +33,8 @@ class CalendarEvent(models.Model):
             
     def action_confirm_reservation_and_unpublish_product(self):
         """
-        Confirms the reservation and unpublishes the vehicle from website.
+        Confirms the reservation and marks the vehicle as reserved.
+        Called when sale order is confirmed (for non-paid appointment flows).
         """
         self.ensure_one()
         vehicle = self.vehicle_template_id
@@ -42,6 +43,16 @@ class CalendarEvent(models.Model):
             _logger.warning("No vehicle linked to Calendar Event ID %s", self.id)
             return
         
-        _logger.info("Confirming reservation and unpublishing vehicle template ID %s", vehicle.id)
-        vehicle.sudo().write({'website_published': False})
-        self.message_post(body=f"Vehicle **{vehicle.display_name}** successfully reserved and **unpublished** from the website.")
+        if vehicle.reservation_status != 'reserved':
+            # Get the customer from the calendar event
+            partner = self.partner_ids[:1] if self.partner_ids else False
+            
+            _logger.info("Marking vehicle template ID %s as reserved", vehicle.id)
+            vehicle.sudo().write({
+                'reservation_status': 'reserved',
+                'reserved_by_partner_id': partner.id if partner else False,
+                'reservation_date': fields.Datetime.now(),
+            })
+            self.message_post(
+                body=f"Vehicle <b>{vehicle.display_name}</b> has been marked as <b>Reserved</b>."
+            )
