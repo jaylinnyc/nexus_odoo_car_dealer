@@ -6,7 +6,7 @@
         <field name="list_price">100.0</field>
         <field name="sale_ok">True</field>        <!-- Enable for sales/eCommerce -->
         <field name="purchase_ok">False</field>        <!-- Optional: Disable purchases if not needed -->
-        <field name="categ_id" ref="product.product_category_3"/>  <!-- Services category -->
+        <field name="categ_id" search="[('name', '=', 'Services')]" model="product.category"/>
         <field name="taxes_id" eval="[(5, 0, 0)]"/>  <!-- Remove all sales taxes -->
     </record>
 
