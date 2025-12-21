@@ -1,4 +1,6 @@
 from odoo import api, fields, models, _
+from odoo.exceptions import UserError
+from markupsafe import Markup
 
 
 class ProductTemplate(models.Model):
@@ -36,6 +38,133 @@ class ProductTemplate(models.Model):
         string='Reservation Date',
         help='Date and time when the vehicle was reserved',
     )
+    
+    # ==========================================
+    # Consignment Fields
+    # ==========================================
+    is_consignment = fields.Boolean(
+        string='Consignment Vehicle',
+        default=False,
+        tracking=True,
+        help='Check if this vehicle is on consignment from a third party'
+    )
+    consignor_id = fields.Many2one(
+        'res.partner',
+        string='Consignor (Vehicle Owner)',
+        tracking=True,
+        help='The owner of the vehicle who consigned it for sale'
+    )
+    consignment_agreement_date = fields.Date(
+        string='Agreement Date',
+        help='Date when the consignment agreement was signed'
+    )
+    consignment_commission_type = fields.Selection([
+        ('percentage', 'Percentage of Sale'),
+        ('fixed', 'Fixed Amount'),
+    ], string='Commission Type', default='percentage',
+       help='How the dealer commission is calculated')
+    consignment_commission_rate = fields.Float(
+        string='Commission Rate (%)',
+        default=10.0,
+        help='Percentage of sale price kept as dealer commission'
+    )
+    consignment_commission_amount = fields.Monetary(
+        string='Fixed Commission',
+        currency_field='currency_id',
+        help='Fixed commission amount (used when Commission Type is Fixed)'
+    )
+    consignment_minimum_price = fields.Monetary(
+        string='Minimum Sale Price',
+        currency_field='currency_id',
+        help='Minimum acceptable sale price agreed with consignor'
+    )
+    consignment_status = fields.Selection([
+        ('active', 'Active'),
+        ('sold', 'Sold'),
+        ('returned', 'Returned to Owner'),
+        ('expired', 'Agreement Expired'),
+    ], string='Consignment Status', default='active', tracking=True)
+    consignment_expiry_date = fields.Date(
+        string='Agreement Expiry Date',
+        help='Date when the consignment agreement expires'
+    )
+    consignment_notes = fields.Text(
+        string='Consignment Notes',
+        help='Additional notes about the consignment agreement'
+    )
+    
+    # Consignment Accounting
+    consignment_payable_account_id = fields.Many2one(
+        'account.account',
+        string='Consignment Payable Account',
+        domain="[('account_type', 'in', ['liability_current', 'liability_non_current'])]",
+        help='Liability account for amounts owed to consignor'
+    )
+    consignment_commission_account_id = fields.Many2one(
+        'account.account',
+        string='Commission Income Account',
+        domain="[('account_type', 'in', ['income', 'income_other'])]",
+        help='Income account for recording commission earned'
+    )
+    consignment_amount_owed = fields.Monetary(
+        string='Amount Owed to Consignor',
+        currency_field='currency_id',
+        compute='_compute_consignment_amounts',
+        store=True,
+        help='Amount to be paid to the consignor after sale'
+    )
+    consignment_commission_earned = fields.Monetary(
+        string='Commission Earned',
+        currency_field='currency_id',
+        compute='_compute_consignment_amounts',
+        store=True,
+        help='Dealer commission earned from the sale'
+    )
+    consignment_sale_price = fields.Monetary(
+        string='Actual Sale Price',
+        currency_field='currency_id',
+        help='The actual price the vehicle was sold for'
+    )
+    consignment_payment_status = fields.Selection([
+        ('not_sold', 'Not Sold Yet'),
+        ('pending', 'Payment Pending'),
+        ('partial', 'Partially Paid'),
+        ('paid', 'Fully Paid'),
+    ], string='Consignor Payment Status', default='not_sold', tracking=True)
+    consignment_amount_paid = fields.Monetary(
+        string='Amount Paid to Consignor',
+        currency_field='currency_id',
+        default=0.0,
+        help='Total amount already paid to the consignor'
+    )
+    consignment_amount_remaining = fields.Monetary(
+        string='Remaining Balance',
+        currency_field='currency_id',
+        compute='_compute_consignment_amounts',
+        store=True,
+        help='Remaining amount to be paid to the consignor'
+    )
+    
+    @api.depends('consignment_sale_price', 'consignment_commission_type', 
+                 'consignment_commission_rate', 'consignment_commission_amount',
+                 'consignment_amount_paid')
+    def _compute_consignment_amounts(self):
+        for vehicle in self:
+            if not vehicle.is_consignment or not vehicle.consignment_sale_price:
+                vehicle.consignment_amount_owed = 0.0
+                vehicle.consignment_commission_earned = 0.0
+                vehicle.consignment_amount_remaining = 0.0
+                continue
+            
+            sale_price = vehicle.consignment_sale_price
+            if vehicle.consignment_commission_type == 'percentage':
+                commission = sale_price * (vehicle.consignment_commission_rate / 100.0)
+            else:
+                commission = vehicle.consignment_commission_amount or 0.0
+            
+            vehicle.consignment_commission_earned = commission
+            vehicle.consignment_amount_owed = sale_price - commission
+            vehicle.consignment_amount_remaining = vehicle.consignment_amount_owed - vehicle.consignment_amount_paid
     
     # Financing fields
     financing_type = fields.Selection([
@@ -263,3 +392,254 @@ class ProductTemplate(models.Model):
         if vals.get('vin') and not vals.get('default_code'):
             vals['default_code'] = vals['vin']
         return super(ProductTemplate, self).write(vals)
+
+    def action_pay_consignor(self):
+        """Open wizard to pay the consignor for a sold consignment vehicle."""
+        self.ensure_one()
+        
+        if not self.is_consignment:
+            raise UserError(_('This vehicle is not a consignment vehicle.'))
+        
+        if self.consignment_status != 'sold':
+            raise UserError(_('This vehicle has not been sold yet.'))
+        
+        if self.consignment_payment_status == 'paid':
+            raise UserError(_('The consignor has already been fully paid for this vehicle.'))
+        
+        return {
+            'name': _('Pay Consignor'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'consignment.payment.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_product_id': self.id,
+            },
+        }
+
+
+class ConsignmentPaymentWizard(models.TransientModel):
+    _name = 'consignment.payment.wizard'
+    _description = 'Pay Consignor for Sold Vehicle'
+
+    product_id = fields.Many2one(
+        'product.template',
+        string='Vehicle',
+        required=True,
+        readonly=True
+    )
+    consignor_id = fields.Many2one(
+        'res.partner',
+        string='Consignor',
+        related='product_id.consignor_id',
+        readonly=True
+    )
+    amount_owed = fields.Monetary(
+        string='Total Amount Owed',
+        currency_field='currency_id',
+        compute='_compute_amounts',
+        readonly=True
+    )
+    amount_paid = fields.Monetary(
+        string='Already Paid',
+        currency_field='currency_id',
+        related='product_id.consignment_amount_paid',
+        readonly=True
+    )
+    amount_remaining = fields.Monetary(
+        string='Remaining Balance',
+        currency_field='currency_id',
+        compute='_compute_amounts',
+        readonly=True
+    )
+    payment_amount = fields.Monetary(
+        string='Payment Amount',
+        currency_field='currency_id',
+        required=True
+    )
+    is_full_payment = fields.Boolean(
+        string='Full Payment',
+        default=True,
+        help='Check to pay the full remaining balance'
+    )
+    payment_date = fields.Date(
+        string='Payment Date',
+        required=True,
+        default=fields.Date.today
+    )
+    payment_journal_id = fields.Many2one(
+        'account.journal',
+        string='Payment Journal',
+        domain="[('type', 'in', ['bank', 'cash']), ('company_id', '=', company_id)]",
+        required=True,
+        help='Bank or cash journal to make the payment from'
+    )
+    currency_id = fields.Many2one(
+        'res.currency',
+        string='Currency',
+        default=lambda self: self.env.company.currency_id
+    )
+    company_id = fields.Many2one(
+        'res.company',
+        default=lambda self: self.env.company,
+        readonly=True
+    )
+    notes = fields.Text(string='Notes')
+
+    @api.depends('product_id')
+    def _compute_amounts(self):
+        for wizard in self:
+            if wizard.product_id:
+                wizard.amount_owed = wizard.product_id.consignment_amount_owed
+                wizard.amount_remaining = wizard.amount_owed - wizard.product_id.consignment_amount_paid
+            else:
+                wizard.amount_owed = 0
+                wizard.amount_remaining = 0
+
+    @api.onchange('is_full_payment', 'amount_remaining')
+    def _onchange_is_full_payment(self):
+        """Auto-populate payment amount when full payment is selected."""
+        if self.is_full_payment:
+            self.payment_amount = self.amount_remaining
+
+    @api.onchange('payment_amount')
+    def _onchange_payment_amount(self):
+        """Update is_full_payment based on amount."""
+        if self.payment_amount and self.amount_remaining:
+            if abs(self.payment_amount - self.amount_remaining) < 0.01:
+                self.is_full_payment = True
+            elif self.is_full_payment:
+                self.is_full_payment = False
+
+    @api.constrains('payment_amount')
+    def _check_payment_amount(self):
+        for wizard in self:
+            if wizard.payment_amount <= 0:
+                raise UserError(_('Payment amount must be greater than zero.'))
+            if wizard.payment_amount > wizard.amount_remaining:
+                raise UserError(_(
+                    'Payment amount ($%s) cannot exceed the remaining balance ($%s).'
+                ) % (wizard.payment_amount, wizard.amount_remaining))
+
+    def action_process_payment(self):
+        """
+        Process payment to consignor.
+        
+        Journal Entry:
+            Dr. Consignment Payable    $45,000
+               Cr. Bank/Cash                      $45,000
+        """
+        self.ensure_one()
+        
+        product = self.product_id
+        
+        # Get the consignment payable account
+        consignment_payable = product.consignment_payable_account_id
+        if not consignment_payable:
+            consignment_payable = self.env.ref(
+                'nexus_odoo_car_dealer.account_consignment_payable',
+                raise_if_not_found=False
+            )
+        
+        if not consignment_payable:
+            raise UserError(_('Please configure the Consignment Payable account.'))
+        
+        # Get the bank/cash account
+        bank_account = self.payment_journal_id.default_account_id
+        if not bank_account:
+            raise UserError(_('The selected payment journal does not have a default account configured.'))
+        
+        # Get general journal
+        journal = self.env['account.journal'].search([
+            ('type', '=', 'general'),
+            ('company_id', '=', self.env.company.id)
+        ], limit=1)
+        
+        if not journal:
+            raise UserError(_('No general journal found.'))
+        
+        # Prepare analytic distribution
+        analytic_dist = {str(product.analytic_account_id.id): 100.0} if product.analytic_account_id else {}
+        
+        # Create journal entry for payment
+        journal_entry_vals = {
+            'move_type': 'entry',
+            'journal_id': journal.id,
+            'date': self.payment_date,
+            'ref': _('Consignment Payment - %s - %s') % (product.name, product.consignor_id.name),
+            'narration': Markup(
+                '<b>Consignment Payment to Owner</b><br/>'
+                'Vehicle: %s<br/>'
+                'Consignor: %s<br/>'
+                'Payment Amount: %s<br/>'
+                '%s'
+            ) % (
+                product.name,
+                product.consignor_id.name,
+                self.payment_amount,
+                'Notes: ' + self.notes if self.notes else '',
+            ),
+            'line_ids': [
+                # Debit: Consignment Payable (reduces liability)
+                (0, 0, {
+                    'name': _('Consignment payment - %s') % product.consignor_id.name,
+                    'account_id': consignment_payable.id,
+                    'partner_id': product.consignor_id.id,
+                    'debit': self.payment_amount,
+                    'credit': 0,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+                # Credit: Bank/Cash
+                (0, 0, {
+                    'name': _('Payment to consignor - %s') % product.name,
+                    'account_id': bank_account.id,
+                    'debit': 0,
+                    'credit': self.payment_amount,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+            ],
+        }
+        
+        journal_entry = self.env['account.move'].create(journal_entry_vals)
+        journal_entry.action_post()
+        
+        # Update product payment tracking
+        new_paid_amount = product.consignment_amount_paid + self.payment_amount
+        new_remaining = product.consignment_amount_owed - new_paid_amount
+        
+        if new_remaining < 0.01:  # Fully paid (with small tolerance)
+            payment_status = 'paid'
+        else:
+            payment_status = 'partial'
+        
+        product.write({
+            'consignment_amount_paid': new_paid_amount,
+            'consignment_payment_status': payment_status,
+        })
+        
+        # Post message to chatter
+        product.message_post(
+            body=Markup(
+                '<b>Consignment Payment Made</b><br/>'
+                'Consignor: %s<br/>'
+                'Payment Amount: %s<br/>'
+                'Total Paid: %s<br/>'
+                'Remaining Balance: %s<br/>'
+                'Journal Entry: <a href="/web#id=%s&model=account.move">%s</a>'
+            ) % (
+                product.consignor_id.name,
+                self.payment_amount,
+                new_paid_amount,
+                max(0, new_remaining),
+                journal_entry.id, journal_entry.name,
+            ),
+            subject=_('Consignment Payment Processed')
+        )
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'account.move',
+            'res_id': journal_entry.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }

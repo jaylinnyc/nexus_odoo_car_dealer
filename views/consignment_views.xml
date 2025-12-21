@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ====== Consignment Payment Wizard Form ====== -->
+    <record id="view_consignment_payment_wizard_form" model="ir.ui.view">
+        <field name="name">consignment.payment.wizard.form</field>
+        <field name="model">consignment.payment.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Pay Consignor">
+                <group>
+                    <group string="Vehicle Information">
+                        <field name="product_id" readonly="1"/>
+                        <field name="consignor_id" readonly="1"/>
+                        <field name="currency_id" invisible="1"/>
+                        <field name="company_id" invisible="1"/>
+                    </group>
+                    <group string="Payment Details">
+                        <field name="amount_owed" widget="monetary" readonly="1"/>
+                        <field name="amount_paid" widget="monetary" readonly="1"/>
+                        <field name="amount_remaining" widget="monetary" readonly="1" 
+                               class="text-primary fw-bold"/>
+                    </group>
+                </group>
+                <group>
+                    <group string="Payment">
+                        <field name="is_full_payment" widget="boolean_toggle"/>
+                        <field name="payment_amount" widget="monetary"/>
+                        <field name="payment_date"/>
+                        <field name="payment_journal_id" placeholder="Select bank/cash account..."/>
+                    </group>
+                    <group string="Notes">
+                        <field name="notes" placeholder="Optional notes about this payment..."/>
+                    </group>
+                </group>
+                <div class="alert alert-info" role="alert">
+                    <strong>Consignment Payment:</strong>
+                    <p>
+                        This will create a journal entry to record the payment to the vehicle consignor.<br/>
+                        • <strong>Full Payment:</strong> Check to pay the entire remaining balance<br/>
+                        • <strong>Partial Payment:</strong> Uncheck and enter a specific amount<br/>
+                        • The consignment payable liability will be reduced by the payment amount
+                    </p>
+                </div>
+                <footer>
+                    <button string="Process Payment" name="action_process_payment" type="object" class="oe_highlight"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ====== Consignment Fields on Product Template Form ====== -->
+    <record id="view_product_template_form_consignment" model="ir.ui.view">
+        <field name="name">product.template.form.consignment</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='purchase']" position="after">
+                <page string="Consignment" name="consignment" 
+                      invisible="categ_id.name != 'Vehicles'">
+                    <group>
+                        <group string="Consignment Details">
+                            <field name="is_consignment" widget="boolean_toggle"/>
+                            <field name="consignor_id" invisible="not is_consignment"
+                                   placeholder="Select the vehicle owner..."/>
+                            <field name="consignment_agreement_date" invisible="not is_consignment"/>
+                            <field name="consignment_expiry_date" invisible="not is_consignment"/>
+                            <field name="consignment_status" invisible="not is_consignment"
+                                   widget="badge" 
+                                   decoration-success="consignment_status == 'active'"
+                                   decoration-info="consignment_status == 'sold'"
+                                   decoration-warning="consignment_status == 'expired'"
+                                   decoration-muted="consignment_status == 'returned'"/>
+                        </group>
+                        <group string="Commission Structure" invisible="not is_consignment">
+                            <field name="consignment_commission_type" widget="radio"/>
+                            <field name="consignment_commission_rate" 
+                                   invisible="consignment_commission_type != 'percentage'"
+                                   widget="percentage"/>
+                            <field name="consignment_commission_amount"
+                                   invisible="consignment_commission_type != 'fixed'"
+                                   widget="monetary"/>
+                            <field name="consignment_minimum_price" widget="monetary"/>
+                        </group>
+                    </group>
+                    
+                    <group invisible="consignment_status != 'sold'">
+                        <group string="Sale Information">
+                            <field name="consignment_sale_price" widget="monetary" readonly="1"/>
+                            <field name="consignment_commission_earned" widget="monetary" readonly="1"/>
+                            <field name="consignment_amount_owed" widget="monetary" readonly="1"
+                                   class="text-primary fw-bold"/>
+                        </group>
+                        <group string="Payment Status">
+                            <field name="consignment_payment_status" widget="badge"
+                                   decoration-danger="consignment_payment_status == 'pending'"
+                                   decoration-warning="consignment_payment_status == 'partial'"
+                                   decoration-success="consignment_payment_status == 'paid'"
+                                   decoration-muted="consignment_payment_status == 'not_sold'"/>
+                            <field name="consignment_amount_paid" widget="monetary" readonly="1"/>
+                            <field name="consignment_amount_remaining" widget="monetary" readonly="1"
+                                   class="text-danger fw-bold"/>
+                        </group>
+                    </group>
+                    
+                    <group string="Accounting" invisible="not is_consignment" col="4">
+                        <field name="consignment_payable_account_id"/>
+                        <field name="consignment_commission_account_id"/>
+                    </group>
+                    
+                    <group string="Notes" invisible="not is_consignment">
+                        <field name="consignment_notes" nolabel="1" 
+                               placeholder="Additional notes about the consignment agreement..."/>
+                    </group>
+                    
+                    <!-- Pay Consignor Button -->
+                    <div invisible="consignment_status != 'sold' or consignment_payment_status == 'paid'"
+                         class="oe_button_box">
+                        <button name="action_pay_consignor" type="object" 
+                                class="btn btn-primary"
+                                string="Pay Consignor"
+                                icon="fa-money"/>
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ====== Consignment List View ====== -->
+    <record id="view_product_template_consignment_tree" model="ir.ui.view">
+        <field name="name">product.template.consignment.tree</field>
+        <field name="model">product.template</field>
+        <field name="arch" type="xml">
+            <tree string="Consignment Vehicles" 
+                  decoration-warning="consignment_payment_status == 'pending'"
+                  decoration-info="consignment_payment_status == 'partial'"
+                  decoration-success="consignment_payment_status == 'paid'">
+                <field name="name"/>
+                <field name="vin"/>
+                <field name="consignor_id"/>
+                <field name="consignment_status" widget="badge"
+                       decoration-success="consignment_status == 'active'"
+                       decoration-info="consignment_status == 'sold'"
+                       decoration-warning="consignment_status == 'expired'"
+                       decoration-muted="consignment_status == 'returned'"/>
+                <field name="consignment_commission_type"/>
+                <field name="consignment_commission_rate" 
+                       invisible="consignment_commission_type != 'percentage'"/>
+                <field name="consignment_sale_price" widget="monetary" 
+                       invisible="consignment_status != 'sold'"/>
+                <field name="consignment_amount_owed" widget="monetary"
+                       invisible="consignment_status != 'sold'"/>
+                <field name="consignment_amount_paid" widget="monetary"
+                       invisible="consignment_status != 'sold'"/>
+                <field name="consignment_amount_remaining" widget="monetary"
+                       invisible="consignment_status != 'sold'"
+                       string="Remaining"/>
+                <field name="consignment_payment_status" widget="badge"
+                       decoration-danger="consignment_payment_status == 'pending'"
+                       decoration-warning="consignment_payment_status == 'partial'"
+                       decoration-success="consignment_payment_status == 'paid'"
+                       invisible="consignment_status != 'sold'"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ====== Consignment Search View ====== -->
+    <record id="view_product_template_consignment_search" model="ir.ui.view">
+        <field name="name">product.template.consignment.search</field>
+        <field name="model">product.template</field>
+        <field name="arch" type="xml">
+            <search string="Consignment Vehicles">
+                <field name="name"/>
+                <field name="vin"/>
+                <field name="consignor_id"/>
+                <separator/>
+                <filter string="Active" name="active" domain="[('consignment_status', '=', 'active')]"/>
+                <filter string="Sold" name="sold" domain="[('consignment_status', '=', 'sold')]"/>
+                <filter string="Returned" name="returned" domain="[('consignment_status', '=', 'returned')]"/>
+                <filter string="Expired" name="expired" domain="[('consignment_status', '=', 'expired')]"/>
+                <separator/>
+                <filter string="Payment Pending" name="payment_pending" 
+                        domain="[('consignment_payment_status', '=', 'pending')]"/>
+                <filter string="Partially Paid" name="partial_paid" 
+                        domain="[('consignment_payment_status', '=', 'partial')]"/>
+                <filter string="Fully Paid" name="fully_paid" 
+                        domain="[('consignment_payment_status', '=', 'paid')]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Consignor" name="group_consignor" 
+                            context="{'group_by': 'consignor_id'}"/>
+                    <filter string="Status" name="group_status" 
+                            context="{'group_by': 'consignment_status'}"/>
+                    <filter string="Payment Status" name="group_payment_status" 
+                            context="{'group_by': 'consignment_payment_status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ====== Consignment Menu Action ====== -->
+    <record id="action_consignment_vehicles" model="ir.actions.act_window">
+        <field name="name">Consignment Vehicles</field>
+        <field name="res_model">product.template</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('is_consignment', '=', True)]</field>
+        <field name="context">{'default_is_consignment': True}</field>
+        <field name="view_ids" eval="[(5, 0, 0), 
+            (0, 0, {'view_mode': 'tree', 'view_id': ref('view_product_template_consignment_tree')})]"/>
+        <field name="search_view_id" ref="view_product_template_consignment_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No consignment vehicles found
+            </p>
+            <p>
+                Consignment vehicles are cars owned by third parties that you sell on their behalf.
+                When sold, the owner receives the sale price minus your commission.
+            </p>
+        </field>
+    </record>
+
+    <!-- ====== Consignment Menu Items ====== -->
+    <menuitem id="menu_consignment_vehicles"
+              name="Consignment Vehicles"
+              parent="sale.sale_menu_root"
+              action="action_consignment_vehicles"
+              sequence="15"/>
+
+</odoo>

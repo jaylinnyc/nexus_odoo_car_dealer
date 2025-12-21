@@ -29,5 +29,36 @@
             <value>financing_liability_account_id</value>
             <value eval="ref('account_floor_plan_payable')"/>
         </function>
+
+        <!-- ====== Consignment Accounts ====== -->
+        
+        <!-- Consignment Payable (Liability Account) - Amount owed to consignors -->
+        <record id="account_consignment_payable" model="account.account">
+            <field name="code">221000</field>
+            <field name="name">Consignment Payable</field>
+            <field name="account_type">liability_current</field>
+            <field name="reconcile">True</field>
+        </record>
+
+        <!-- Consignment Commission Income (Revenue Account) -->
+        <record id="account_consignment_commission_income" model="account.account">
+            <field name="code">410000</field>
+            <field name="name">Consignment Commission Income</field>
+            <field name="account_type">income</field>
+            <field name="reconcile">False</field>
+        </record>
+
+        <!-- Set default consignment accounts on product template -->
+        <function model="ir.default" name="set">
+            <value>product.template</value>
+            <value>consignment_payable_account_id</value>
+            <value eval="ref('account_consignment_payable')"/>
+        </function>
+
+        <function model="ir.default" name="set">
+            <value>product.template</value>
+            <value>consignment_commission_account_id</value>
+            <value eval="ref('account_consignment_commission_income')"/>
+        </function>
     </data>
 </odoo>
