@@ -2,35 +2,51 @@
 <odoo>
     <template id="product_custom_add_to_cart" inherit_id="website_sale.cta_wrapper">
         <xpath expr="//a[@id='add_to_cart']" position="replace">
-            <t t-if="product.type == 'consu' and product.categ_id.name == 'Vehicles' and product.qty_available > 0">
-                <!-- Vehicle in stock - show Reserve Now or Reserved status -->
-                <t t-if="product.reservation_status == 'reserved'">
-                    <!-- Vehicle is reserved - show disabled button with badge -->
-                    <div class="d-flex flex-column gap-2 w-100">
-                        <span class="badge bg-warning text-dark fs-6 py-2">
-                            <i class="fa fa-lock me-2"/>This Vehicle is Reserved
-                        </span>
-                        <button class="btn btn-secondary btn-lg w-100" disabled="disabled">
-                            <i class="fa fa-calendar-times-o me-2"/>Not Available
-                        </button>
-                    </div>
+            <t t-if="product.type == 'consu' and product.categ_id.name == 'Vehicles'">
+                <!-- Vehicle category handling -->
+                <t t-if="product.qty_available > 0">
+                    <!-- Vehicle in stock -->
+                    <t t-if="product.reservation_status == 'reserved'">
+                        <!-- Vehicle is reserved -->
+                        <div class="d-flex flex-column gap-2 w-100">
+                            <span class="badge bg-warning text-dark fs-6 py-2">
+                                <i class="fa fa-lock me-2"/>This Vehicle is Reserved
+                            </span>
+                            <button class="btn btn-secondary btn-lg w-100" disabled="disabled">
+                                <i class="fa fa-calendar-times-o me-2"/>Not Available
+                            </button>
+                        </div>
+                    </t>
+                    <t t-else="">
+                        <!-- Vehicle is available - show Reserve Now button -->
+                        <a id="reserve_now_btn" 
+                           t-attf-href="/appointment/#{request.env.ref('nexus_odoo_car_dealer.appointment_type_vehicle_reservation').sudo().id}?vehicle_template_id=#{product.id}" 
+                           class="btn btn-primary btn-lg w-100">
+                            <i class="fa fa-calendar me-2"/>Reserve Now
+                        </a>
+                    </t>
                 </t>
                 <t t-else="">
-                    <!-- Vehicle is available - show Reserve Now button -->
-                    <a id="reserve_now_btn" 
-                       t-attf-href="/appointment/#{request.env.ref('nexus_odoo_car_dealer.appointment_type_vehicle_reservation').sudo().id}?vehicle_template_id=#{product.id}" 
-                       class="btn btn-primary btn-lg w-100">
-                        <i class="fa fa-calendar me-2"/>Reserve Now
-                    </a>
+                    <!-- Vehicle sold (qty <= 0) -->
+                    <button class="btn btn-secondary btn-lg w-100" disabled="disabled">
+                        <i class="fa fa-ban me-2"/>Sold
+                    </button>
                 </t>
             </t>
             <t t-else="">
-                <!-- Non-vehicle OR out-of-stock vehicle: use standard Add to Cart button -->
-                <!-- Odoo's JS/CSS will handle showing "Out of Stock" when qty=0 -->
-                <a id="add_to_cart" role="button" href="#" t-attf-class="btn btn-primary js_check_product a-submit flex-grow-1" t-att-data-show-quantity="is_view_active('website_sale.product_quantity')" data-animation-selector=".o_wsale_product_images">
-                    <i class="fa fa-shopping-cart me-2"/>
-                    Add to cart
-                </a>
+                <!-- Non-vehicle: use standard Add to Cart button -->
+                <t t-if="product.qty_available > 0">
+                    <a id="add_to_cart" role="button" href="#" t-attf-class="btn btn-primary js_check_product a-submit flex-grow-1" t-att-data-show-quantity="is_view_active('website_sale.product_quantity')" data-animation-selector=".o_wsale_product_images">
+                        <i class="fa fa-shopping-cart me-2"/>
+                        Add to cart
+                    </a>
+                </t>
+                <t t-else="">
+                    <!-- Out of stock -->
+                    <button class="btn btn-secondary btn-lg w-100" disabled="disabled">
+                        <i class="fa fa-ban me-2"/>Sold
+                    </button>
+                </t>
             </t>
         </xpath>
     </template>
