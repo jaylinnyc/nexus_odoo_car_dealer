@@ -22,8 +22,8 @@
         <field name="schedule_based_on">resources</field>
         <field name="resource_ids" eval="[(6, 0, [ref('appointment_resource_showroom')])]"/>
         <field name="product_id" ref="nexus_odoo_car_dealer.reservation_product_xmlid"/>
-        <!-- Use company's partner address as location (disable online meeting) -->
-        <field name="location_id" eval="obj().env.company.partner_id.id"/>
+        <!-- Use main company's partner address as location (disable online meeting) -->
+        <field name="location_id" ref="base.main_partner"/>
         <field name="event_videocall_source" eval="False"/>
     </record>
 </odoo>
