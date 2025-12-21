@@ -37,7 +37,7 @@ class SaleOrder(models.Model):
     def _prepare_order_line_values(self, *args, calendar_booking_id=False, calendar_booking_tz=False, **kwargs):
         """
         Override to add reservation_vehicle_id from calendar.booking to the SOL.
-        This links the reserved vehicle to the cart line.
+        This links the reserved vehicle to the cart line and adds vehicle details to description.
         """
         values = super()._prepare_order_line_values(
             *args,
@@ -50,9 +50,18 @@ class SaleOrder(models.Model):
             booking_sudo = self.env['calendar.booking'].sudo().browse(calendar_booking_id)
             if booking_sudo.vehicle_template_id:
                 values['reservation_vehicle_id'] = booking_sudo.vehicle_template_id.id
-                # Enhance the line description with vehicle info
+                # Enhance the line description with detailed vehicle info
                 vehicle = booking_sudo.vehicle_template_id
-                vehicle_info = f"\nVehicle: {vehicle.display_name}"
+                vehicle_details = []
+                vehicle_details.append(f"Reserved Vehicle: {vehicle.display_name}")
+                if vehicle.vin:
+                    vehicle_details.append(f"VIN: {vehicle.vin}")
+                if vehicle.year and vehicle.make and vehicle.model:
+                    vehicle_details.append(f"Year/Make/Model: {vehicle.year} {vehicle.make} {vehicle.model}")
+                if vehicle.list_price:
+                    vehicle_details.append(f"Vehicle Price: ${vehicle.list_price:,.2f}")
+                
+                vehicle_info = "\n" + "\n".join(vehicle_details)
                 if values.get('name'):
                     values['name'] = values['name'] + vehicle_info
                 _logger.info("Linked vehicle %s to SOL for booking %s", vehicle.display_name, booking_sudo.id)
