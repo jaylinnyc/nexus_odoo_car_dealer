@@ -10,14 +10,20 @@
         <field name="taxes_id" eval="[(5, 0, 0)]"/>  <!-- Remove all sales taxes -->
     </record>
 
+    <!-- Generic Showroom Resource for Vehicle Reservations -->
+    <record id="resource_showroom" model="resource.resource">
+        <field name="name">Showroom</field>
+        <field name="resource_type">material</field>  <!-- material = shared/non-human resource -->
+        <field name="calendar_id" ref="resource.resource_calendar_std"/>  <!-- Standard 40hr week -->
+        <field name="active">True</field>
+    </record>
+
     <record id="appointment_type_vehicle_reservation" model="appointment.type">
         <field name="name">View Reserved Vehicle</field>
-        <field name="appointment_duration">1.0</field>        <!-- Duration in hours; adjust as needed -->        <!-- Enable up-front payment -->
+        <field name="appointment_duration">1.0</field>
+        <field name="schedule_based_on">resources</field>  <!-- Use resources instead of users -->
+        <field name="resource_ids" eval="[(6, 0, [ref('resource_showroom')])]"/>
         <field name="product_id" ref="nexus_odoo_car_dealer.reservation_product_xmlid"/>
-        <!-- Assign to a user (e.g., Admin) for scheduling -->
-        <field name="staff_user_ids" eval="[(6, 0, [ref('base.user_admin')])]"/>
- 
-        <!-- Link to the new "Vehicle Reservation" service product -->
         <!-- Add other fields as needed, e.g., <field name="website_published">True</field> to publish automatically -->
     </record>
 </odoo>
