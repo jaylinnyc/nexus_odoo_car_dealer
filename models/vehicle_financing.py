@@ -217,9 +217,9 @@ class ProductTemplate(models.Model):
             liability_account = self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False)
         
         if not liability_account:
-            # Search for any current liability account with "floor plan" in the name
+            # Search for any liability account with "floor plan" in the name
             liability_account = self.env['account.account'].search([
-                ('account_type', 'in', ['liability_current', 'liability_non_current']),
+                ('account_type', 'in', ['liability_current', 'liability_non_current', 'liability_payable']),
                 '|',
                 ('name', 'ilike', 'floor plan'),
                 ('name', 'ilike', 'payable')
@@ -289,6 +289,7 @@ class ProductTemplate(models.Model):
         
         for payment in bill_payments:
             # Debit: Accounts Payable (reduces vendor bill)
+            # Set partner to vendor for reconciliation purposes
             line_items.append((0, 0, {
                 'name': _('Floor plan payment - %s - %s') % (
                     'Primary Bill' if payment['type'] == 'primary' else 'Landed Cost',
@@ -657,27 +658,24 @@ class ProductTemplate(models.Model):
         
         # Create journal entry for interest
         
-        # Get the expense account
-        expense_account = self.financing_expense_account_id
+        # Get the Interest Payable account (liability)
+        interest_payable_account = self.financing_expense_account_id
         
-        if not expense_account:
-            # Try to find the best matching expense account for interest
-            expense_account = self.env['account.account'].search([
-                ('account_type', '=', 'expense'),
-                '|', '|',
+        if not interest_payable_account:
+            # Try to find the Interest Payable account
+            interest_payable_account = self.env.ref('nexus_odoo_car_dealer.account_interest_payable', raise_if_not_found=False)
+        
+        if not interest_payable_account:
+            # Search for any liability_payable account with "interest" in the name
+            interest_payable_account = self.env['account.account'].search([
+                ('account_type', '=', 'liability_payable'),
+                '|',
                 ('code', 'ilike', 'interest'),
-                ('name', 'ilike', 'interest'),
-                ('name', 'ilike', 'financial')
+                ('name', 'ilike', 'interest')
             ], limit=1)
         
-        # Fallback to any expense account
-        if not expense_account:
-            expense_account = self.env['account.account'].search([
-                ('account_type', '=', 'expense'),
-            ], limit=1)
-        
-        if not expense_account:
-            raise UserError(_('Please configure an expense account in your chart of accounts.'))
+        if not interest_payable_account:
+            raise UserError(_('Please configure the Interest Payable account (liability type) in the Financing tab.'))
         
         # Get the liability account
         liability_account = self.financing_liability_account_id
@@ -697,24 +695,27 @@ class ProductTemplate(models.Model):
         analytic_dist = {str(self.analytic_account_id.id): 100.0} if self.analytic_account_id else {}
         
         # Create journal entry for interest
+        # Debit: Interest Expense (P&L) - Records the cost
+        # Credit: Interest Payable (Liability) - Tracks amount owed to financing partner
         journal_entry_vals = {
             'move_type': 'entry',
             'journal_id': journal.id,
             'date': bill_date,
             'ref': _('Interest - %s - %s') % (self.name, bill_date.strftime('%B %Y')),
             'line_ids': [
-                # Debit: Interest Expense
+                # Debit: Interest Expense (P&L recognition)
                 (0, 0, {
                     'name': interest_description,
-                    'account_id': expense_account.id,
+                    'account_id': self.env.ref('nexus_odoo_car_dealer.account_interest_expense').id,
+                    'partner_id': self.financing_partner_id.id,
                     'debit': total_interest,
                     'credit': 0,
                     'analytic_distribution': analytic_dist or False,
                 }),
-                # Credit: Floor Plan Payable (increases liability)
+                # Credit: Interest Payable (liability owed to financing partner)
                 (0, 0, {
                     'name': interest_description,
-                    'account_id': liability_account.id,
+                    'account_id': interest_payable_account.id,
                     'partner_id': self.financing_partner_id.id,
                     'debit': 0,
                     'credit': total_interest,
@@ -1149,24 +1150,17 @@ class VehicleFinancingTopupWizard(models.TransientModel):
         """Create a supplemental interest bill for top-up that occurred mid-period."""
         
         # Get accounts
-        expense_account = product.financing_expense_account_id
-        if not expense_account:
-            expense_account = self.env['account.account'].search([
-                ('account_type', '=', 'expense'),
-                '|', '|',
+        interest_payable_account = product.financing_expense_account_id
+        if not interest_payable_account:
+            interest_payable_account = self.env.ref('nexus_odoo_car_dealer.account_interest_payable', raise_if_not_found=False)
+        
+        if not interest_payable_account:
+            interest_payable_account = self.env['account.account'].search([
+                ('account_type', '=', 'liability_payable'),
+                '|',
                 ('code', 'ilike', 'interest'),
-                ('name', 'ilike', 'interest'),
-                ('name', 'ilike', 'financial')
+                ('name', 'ilike', 'interest')
             ], limit=1)
-        
-        if not expense_account:
-            expense_account = self.env['account.account'].search([
-                ('account_type', '=', 'expense'),
-            ], limit=1)
-        
-        liability_account = product.financing_liability_account_id
-        if not liability_account:
-            liability_account = self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False)
         
         journal = self.env['account.journal'].search([
             ('type', '=', 'general'),
@@ -1197,16 +1191,19 @@ class VehicleFinancingTopupWizard(models.TransientModel):
             'date': original_bill_date,  # Use same date as original bill
             'ref': _('Supplemental Interest - %s - %s') % (product.name, original_bill_date.strftime('%B %Y')),
             'line_ids': [
+                # Debit: Interest Expense (P&L recognition)
                 (0, 0, {
                     'name': interest_description,
-                    'account_id': expense_account.id,
+                    'account_id': self.env.ref('nexus_odoo_car_dealer.account_interest_expense').id,
+                    'partner_id': product.financing_partner_id.id,
                     'debit': supplemental_interest,
                     'credit': 0,
                     'analytic_distribution': analytic_dist or False,
                 }),
+                # Credit: Interest Payable (liability owed to financing partner)
                 (0, 0, {
                     'name': interest_description,
-                    'account_id': liability_account.id,
+                    'account_id': interest_payable_account.id,
                     'partner_id': product.financing_partner_id.id,
                     'debit': 0,
                     'credit': supplemental_interest,
@@ -1408,6 +1405,7 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
                 (0, 0, {
                     'name': _('Floor plan paydown - %s') % product.name,
                     'account_id': bank_account.id,
+                    'partner_id': product.financing_partner_id.id,
                     'debit': 0,
                     'credit': self.paydown_amount,
                     'analytic_distribution': analytic_dist or False,

@@ -5,16 +5,24 @@
         <record id="account_floor_plan_payable" model="account.account">
             <field name="code">220000</field>
             <field name="name">Floor Plan Payable</field>
-            <field name="account_type">liability_current</field>
+            <field name="account_type">liability_payable</field>
             <field name="reconcile">True</field>
         </record>
 
-        <!-- Interest Expense Account -->
-        <record id="account_interest_expense" model="account.account">
-            <field name="code">670000</field>
-            <field name="name">Interest Expense - Vehicle Financing</field>
-            <field name="account_type">expense</field>
-            <field name="reconcile">False</field>
+        <!-- Interest Payable Account (liability to track unpaid interest) -->
+        <record id="account_interest_payable" model="account.account">
+            <field name="code">221000</field>
+            <field name="name">Interest Payable - Floor Plan</field>
+            <field name="account_type">liability_payable</field>
+            <field name="reconcile">True</field>
+        </record>
+
+        <!-- Set as default on product template via ir.default -->
+        <function model="ir.default" name="set">
+            <value>product.template</value>
+            <value>financing_expense_account_id</value>
+            <value eval="ref('account_interest_payable')"/>
+        </function>name="reconcile">False</field>
         </record>
 
         <!-- Set as default on product template via ir.default -->

@@ -76,16 +76,16 @@ class ProductTemplate(models.Model):
     )
     financing_expense_account_id = fields.Many2one(
         'account.account',
-        string='Interest Expense Account',
-        domain="[('account_type', '=', 'expense')]",
+        string='Interest Payable Account',
+        domain="[('account_type', '=', 'liability_payable')]",
         copy=False,
-        default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_interest_expense', raise_if_not_found=False),
-        help='Account to use for recording interest expenses. If not set, will search for an interest expense account.'
+        default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_interest_payable', raise_if_not_found=False),
+        help='Liability account for unpaid interest charges. This tracks interest owed to the financing partner.'
     )
     financing_liability_account_id = fields.Many2one(
         'account.account',
         string='Floor Plan Payable Account',
-        domain="[('account_type', 'in', ['liability_current', 'liability_non_current'])]",
+        domain="[('account_type', 'in', ['liability_current', 'liability_non_current', 'liability_payable'])]",
         copy=False,
         default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False),
         help='Liability account for floor plan financing. This account tracks the amount owed to the financing partner.'
