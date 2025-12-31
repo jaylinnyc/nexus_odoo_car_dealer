@@ -10,6 +10,12 @@ class FinancingAgreementWizard(models.TransientModel):
     agreement_date = fields.Date(string='Agreement Date', default=fields.Date.today, required=True)
     interest_rate = fields.Float(string='Annual Interest Rate (%)', required=True, default=0.0)
     
+    multiple_vehicles = fields.Boolean(string='Finance Multiple Vehicles', default=False)
+    vehicle_id = fields.Many2one('product.template', string='Vehicle', 
+                                 domain="[('total_bills_residual', '>', 0), ('financing_type', '=', 'none')]")
+    financed_amount = fields.Monetary(string='Amount to Finance', currency_field='currency_id')
+    currency_id = fields.Many2one('res.currency', default=lambda self: self.env.company.currency_id)
+    
     vehicle_line_ids = fields.One2many('financing.agreement.wizard.line', 'wizard_id', string='Vehicles to Finance')
     
     expense_account_id = fields.Many2one(
@@ -25,35 +31,54 @@ class FinancingAgreementWizard(models.TransientModel):
         default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False),
     )
 
-    @api.onchange('partner_id')
-    def _onchange_partner_id(self):
-        """Load available vehicles with outstanding bills when lender is selected"""
-        if self.partner_id:
-            # Find all products with purchase orders that have outstanding vendor bills
+    @api.onchange('vehicle_id')
+    def _onchange_vehicle_id(self):
+        """Set financed amount when vehicle is selected"""
+        if self.vehicle_id:
+            self.financed_amount = self.vehicle_id.total_bills_residual
+    
+    @api.onchange('multiple_vehicles')
+    def _onchange_multiple_vehicles(self):
+        """Load available vehicles with outstanding bills when multiple vehicles is enabled"""
+        if self.multiple_vehicles:
+            # Find all vehicles with outstanding bills that aren't already financed
             products = self.env['product.template'].search([
-                ('purchase_order_line_ids', '!=', False),
                 ('total_bills_residual', '>', 0),
-                ('financing_type', '=', 'none'),  # Not already financed
+                ('financing_type', '=', 'none'),
             ])
             
             lines = []
             for product in products:
-                # Get the outstanding bill amount
-                if product.total_bills_residual > 0:
-                    lines.append((0, 0, {
-                        'vehicle_id': product.id,
-                        'financed_amount': product.total_bills_residual,
-                        'selected': False,
-                    }))
+                lines.append((0, 0, {
+                    'vehicle_id': product.id,
+                    'financed_amount': product.total_bills_residual,
+                    'selected': False,
+                }))
             
             self.vehicle_line_ids = lines
+        else:
+            self.vehicle_line_ids = [(5, 0, 0)]  # Clear all lines
 
     def action_create_agreement(self):
         """Create the financing agreement and lines for selected vehicles"""
-        selected_lines = self.vehicle_line_ids.filtered(lambda l: l.selected)
+        # Collect vehicles to finance
+        vehicles_to_finance = []
         
-        if not selected_lines:
-            raise UserError(_('Please select at least one vehicle to finance.'))
+        if self.multiple_vehicles:
+            selected_lines = self.vehicle_line_ids.filtered(lambda l: l.selected)
+            if not selected_lines:
+                raise UserError(_('Please select at least one vehicle to finance.'))
+            vehicles_to_finance = selected_lines
+        else:
+            if not self.vehicle_id:
+                raise UserError(_('Please select a vehicle to finance.'))
+            if self.financed_amount <= 0:
+                raise UserError(_('Financed amount must be greater than zero.'))
+            # Create a temporary line object for single vehicle mode
+            vehicles_to_finance = [type('obj', (object,), {
+                'vehicle_id': self.vehicle_id,
+                'financed_amount': self.financed_amount
+            })]
         
         # Create the agreement
         agreement = self.env['financing.agreement'].create({
@@ -62,8 +87,8 @@ class FinancingAgreementWizard(models.TransientModel):
             'state': 'draft',
         })
         
-        # Create agreement lines for each selected vehicle
-        for line in selected_lines:
+        # Create agreement lines for each vehicle
+        for line in vehicles_to_finance:
             self.env['financing.agreement.line'].create({
                 'agreement_id': agreement.id,
                 'vehicle_id': line.vehicle_id.id,

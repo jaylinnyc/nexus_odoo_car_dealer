@@ -19,7 +19,14 @@
                                 <field name="liability_account_id"/>
                             </group>
                         </group>
-                        <group string="Select Vehicles to Finance">
+                        <group>
+                            <field name="multiple_vehicles"/>
+                        </group>
+                        <group string="Vehicle to Finance" invisible="multiple_vehicles">
+                            <field name="vehicle_id" required="not multiple_vehicles"/>
+                            <field name="financed_amount" required="not multiple_vehicles"/>
+                        </group>
+                        <group string="Select Vehicles to Finance" invisible="not multiple_vehicles">
                             <field name="vehicle_line_ids" nolabel="1">
                                 <list editable="bottom">
                                     <field name="selected"/>
@@ -46,12 +53,5 @@
             <field name="view_mode">form</field>
             <field name="target">new</field>
         </record>
-
-        <!-- Menu item -->
-        <menuitem id="menu_financing_new_agreement"
-                  name="New Agreement"
-                  parent="menu_financing_root"
-                  action="action_financing_agreement_wizard"
-                  sequence="3"/>
     </data>
 </odoo>
