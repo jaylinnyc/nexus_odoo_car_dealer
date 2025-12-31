@@ -415,6 +415,15 @@ class FinancingAgreementLine(models.Model):
             raise UserError(_('No vehicle linked to this financing line.'))
         return self.vehicle_id.action_paydown_floor_plan_financing()
 
+    def action_generate_interest_bill(self):
+        """Generate interest bill for this vehicle"""
+        self.ensure_one()
+        if not self.vehicle_id:
+            raise UserError(_('No vehicle linked to this financing line.'))
+        if self.state != 'active':
+            raise UserError(_('Interest bills can only be generated for active financing.'))
+        return self.vehicle_id.action_generate_interest_bill()
+
     def action_mark_paid_off(self):
         """Mark this financing line as paid off"""
         self.ensure_one()

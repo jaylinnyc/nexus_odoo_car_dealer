@@ -82,6 +82,7 @@
                                         <field name="state" widget="badge" decoration-success="state == 'active'" decoration-info="state == 'draft'" decoration-muted="state == 'paid_off'"/>
                                         <button name="action_topup" type="object" string="Top-Up" icon="fa-plus-circle" class="oe_highlight" invisible="state != 'active'"/>
                                         <button name="action_paydown" type="object" string="Pay Down" icon="fa-minus-circle" invisible="state != 'active'"/>
+                                        <button name="action_generate_interest_bill" type="object" string="Generate Interest" icon="fa-calculator" invisible="state != 'active'" title="Generate Interest Bill"/>
                                         <button name="action_view_vehicle_details" type="object" string="Details" icon="fa-info-circle" class="oe_link"/>
                                     </list>
                                 </field>
