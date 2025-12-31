@@ -6,7 +6,7 @@
             <field name="name">financing.agreement.tree</field>
             <field name="model">financing.agreement</field>
             <field name="arch" type="xml">
-                <list string="Financing Agreements" js_class="financing_agreement_list" create="false">
+                <list string="Financing Agreements" js_class="financing_agreement_list" create="false" open_form_view="True">
                     <field name="name"/>
                     <field name="partner_id"/>
                     <field name="agreement_date"/>
@@ -225,6 +225,24 @@
             </field>
         </record>
 
+        <!-- Financing Agreement Line Tree View -->
+        <record id="view_financing_agreement_line_tree" model="ir.ui.view">
+            <field name="name">financing.agreement.line.tree</field>
+            <field name="model">financing.agreement.line</field>
+            <field name="arch" type="xml">
+                <list string="Financing Lines" open_form_view="True">
+                    <field name="agreement_id"/>
+                    <field name="vehicle_id"/>
+                    <field name="partner_id"/>
+                    <field name="financed_amount" widget="monetary" sum="Total Principal"/>
+                    <field name="interest_rate"/>
+                    <field name="current_balance" widget="monetary" sum="Total Balance"/>
+                    <field name="accumulated_interest" widget="monetary" sum="Total Interest"/>
+                    <field name="state" widget="badge" decoration-success="state == 'active'" decoration-info="state == 'draft'" decoration-muted="state == 'paid_off'"/>
+                </list>
+            </field>
+        </record>
+
         <!-- Financing Agreement Line Graph View (Dashboard) -->
         <record id="view_financing_agreement_line_graph" model="ir.ui.view">
             <field name="name">financing.agreement.line.graph</field>
@@ -269,6 +287,16 @@
                     Click "New" to create a financing agreement for one or more vehicles.
                 </p>
             </field>
+        </record>
+
+        <!-- Action for viewing financing lines (used from product page) -->
+        <record id="action_financing_agreement_line" model="ir.actions.act_window">
+            <field name="name">Financing Lines</field>
+            <field name="res_model">financing.agreement.line</field>
+            <field name="view_mode">list,form</field>
+            <field name="view_ids" eval="[(5, 0, 0),
+                (0, 0, {'view_mode': 'list', 'view_id': ref('view_financing_agreement_line_tree')}),
+                (0, 0, {'view_mode': 'form', 'view_id': ref('view_financing_agreement_line_form')})]"/>
         </record>
 
         <record id="action_financing_dashboard" model="ir.actions.act_window">

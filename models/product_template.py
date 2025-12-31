@@ -236,14 +236,10 @@ class ProductTemplate(models.Model):
 
     def action_view_financing_agreements(self):
         self.ensure_one()
-        return {
-            'name': _('Financing Agreements'),
-            'type': 'ir.actions.act_window',
-            'res_model': 'financing.agreement.line',
-            'view_mode': 'list,form',
-            'domain': [('vehicle_id', '=', self.id)],
-            'context': {'default_vehicle_id': self.id},
-        }
+        action = self.env['ir.actions.act_window']._for_xml_id('nexus_odoo_car_dealer.action_financing_agreement_line')
+        action['domain'] = [('vehicle_id', '=', self.id)]
+        action['context'] = {'default_vehicle_id': self.id}
+        return action
 
     @api.onchange('year', 'make', 'model', 'categ_id')
     def _onchange_vehicle_details(self):
