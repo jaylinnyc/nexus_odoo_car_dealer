@@ -78,6 +78,13 @@
                             </group>
                         </group>
                         <div invisible="financing_type != 'internal'" class="oe_button_box" name="button_box">
+                            <button name="action_view_financing_agreements"
+                                    type="object"
+                                    class="oe_stat_button"
+                                    icon="fa-file-text-o"
+                                    invisible="financing_agreement_count == 0">
+                                <field name="financing_agreement_count" widget="statinfo" string="Agreements"/>
+                            </button>
                             <button name="action_view_financing" 
                                     type="object"
                                     class="oe_stat_button"
@@ -138,5 +145,65 @@
             </field>
         </record>
 
+        <!-- Purchase Order Form View - Add Financing Button -->
+        <record id="view_purchase_order_financing_form" model="ir.ui.view">
+            <field name="name">purchase.order.financing.form</field>
+            <field name="model">purchase.order</field>
+            <field name="inherit_id" ref="purchase.purchase_order_form"/>
+            <field name="arch" type="xml">
+                <div name="button_box" position="inside">
+                    <button name="action_view_financed_vehicles"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-car"
+                            invisible="financed_vehicle_count == 0">
+                        <field name="financed_vehicle_count" widget="statinfo" string="Financed"/>
+                    </button>
+                </div>
+            </field>
+        </record>
+
+        <!-- Standalone Financing Actions & Menus -->
+        <record id="action_financing_vehicles" model="ir.actions.act_window">
+            <field name="name">Financed Vehicles</field>
+            <field name="res_model">product.template</field>
+            <field name="view_mode">list,form,kanban</field>
+            <field name="domain">[('financing_type', '!=', 'none')]</field>
+            <field name="context">{'default_financing_type': 'internal'}</field>
+            <field name="help" type="html">
+              <p class="o_view_nocontent_smiling_face">
+                No financed vehicles found
+              </p><p>
+                Track your floor plan financing and interest payments here.
+              </p>
+            </field>
+        </record>
+
+        <record id="action_financing_bills" model="ir.actions.act_window">
+            <field name="name">Interest Bills</field>
+            <field name="res_model">vehicle.financing</field>
+            <field name="view_mode">list,form</field>
+            <field name="help" type="html">
+              <p class="o_view_nocontent_smiling_face">
+                No interest bills generated yet
+              </p>
+            </field>
+        </record>
+
+        <menuitem id="menu_financing_root"
+                  name="Financing"
+                  sequence="40"/>
+
+        <menuitem id="menu_financing_vehicles"
+                  name="Vehicles"
+                  parent="menu_financing_root"
+                  action="action_financing_vehicles"
+                  sequence="10"/>
+
+        <menuitem id="menu_financing_bills"
+                  name="Interest Bills"
+                  parent="menu_financing_root"
+                  action="action_financing_bills"
+                  sequence="20"/>
     </data>
 </odoo>

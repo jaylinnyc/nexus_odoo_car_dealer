@@ -43,7 +43,8 @@ Car Dealer Customizations
         'data/tax_data.xml',
         'data/appointment_data.xml',
         'data/financing_cron.xml',
-        
+        'data/migration_action.xml',
+
         # Views
         'views/test.xml',
         'views/vehicle_show.xml',
@@ -53,6 +54,7 @@ Car Dealer Customizations
         'views/reserve_now_btn.xml',
         'views/cart_vehicle_info.xml',
         'views/reservation_views.xml',
+        'views/financing_agreement_views.xml',
     ],
 
     # Only if you created new models and want demo data

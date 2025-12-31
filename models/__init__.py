@@ -6,3 +6,4 @@ from . import calendar_booking
 from . import purchase_order_line
 from . import account_move
 from . import vehicle_financing
+from . import financing_agreement

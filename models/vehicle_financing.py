@@ -40,6 +40,11 @@ class VehicleFinancing(models.Model):
         ('draft', 'Draft'),
         ('posted', 'Posted'),
     ], string='Status', default='draft', compute='_compute_state', store=True)
+    agreement_line_id = fields.Many2one(
+        'financing.agreement.line',
+        string='Financing Agreement',
+        ondelete='cascade'
+    )
 
     @api.depends('bill_id.state')
     def _compute_state(self):

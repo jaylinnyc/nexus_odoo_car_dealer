@@ -93,6 +93,26 @@ class PurchaseOrderLine(models.Model):
 class PurchaseOrder(models.Model):
     _inherit = 'purchase.order'
     
+    financed_vehicle_count = fields.Integer(compute='_compute_financed_vehicle_count', string='Financed Vehicles')
+
+    @api.depends('order_line.product_id.financing_type')
+    def _compute_financed_vehicle_count(self):
+        for order in self:
+            # Access financing_type from product_id (product.product) which delegates to product.template
+            order.financed_vehicle_count = sum(1 for line in order.order_line if line.product_id.financing_type != 'none')
+
+    def action_view_financed_vehicles(self):
+        self.ensure_one()
+        financed_products = self.order_line.mapped('product_id.product_tmpl_id').filtered(lambda p: p.financing_type != 'none')
+        return {
+            'name': _('Financed Vehicles'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'product.template',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', financed_products.ids)],
+            'context': {'create': False},
+        }
+    
     def button_confirm(self):
         """Override to create analytic accounts and set financing start date when PO is confirmed."""
         res = super().button_confirm()

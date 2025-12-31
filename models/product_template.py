@@ -158,6 +158,7 @@ class ProductTemplate(models.Model):
         store=False,
         help='Total outstanding amount on all bills'
     )
+    financing_agreement_count = fields.Integer(compute='_compute_financing_agreement_count', string='Agreements')
 
     @api.depends('product_variant_ids')
     def _compute_has_purchase_order(self):
@@ -228,6 +229,22 @@ class ProductTemplate(models.Model):
                 product.vendor_bill_amount_residual = 0
                 product.total_bills_amount = 0
                 product.total_bills_residual = 0
+
+    @api.depends('vehicle_id')
+    def _compute_financing_agreement_count(self):
+        for record in self:
+            record.financing_agreement_count = self.env['financing.agreement.line'].search_count([('vehicle_id', '=', record.id)])
+
+    def action_view_financing_agreements(self):
+        self.ensure_one()
+        return {
+            'name': _('Financing Agreements'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'financing.agreement.line',
+            'view_mode': 'list,form',
+            'domain': [('vehicle_id', '=', self.id)],
+            'context': {'default_vehicle_id': self.id},
+        }
 
     @api.onchange('year', 'make', 'model', 'categ_id')
     def _onchange_vehicle_details(self):

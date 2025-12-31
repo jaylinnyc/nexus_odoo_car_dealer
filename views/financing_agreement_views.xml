@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Financing Agreement Tree View -->
+        <record id="view_financing_agreement_tree" model="ir.ui.view">
+            <field name="name">financing.agreement.tree</field>
+            <field name="model">financing.agreement</field>
+            <field name="arch" type="xml">
+                <list string="Financing Agreements">
+                    <field name="name"/>
+                    <field name="partner_id"/>
+                    <field name="agreement_date"/>
+                    <field name="total_financed_amount"/>
+                    <field name="total_balance"/>
+                    <field name="state" widget="badge" decoration-success="state == 'active'" decoration-info="state == 'draft'"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Financing Agreement Form View -->
+        <record id="view_financing_agreement_form" model="ir.ui.view">
+            <field name="name">financing.agreement.form</field>
+            <field name="model">financing.agreement</field>
+            <field name="arch" type="xml">
+                <form string="Financing Agreement">
+                    <header>
+                        <button name="action_activate" string="Activate" type="object" class="oe_highlight" invisible="state != 'draft'"/>
+                        <button name="action_close" string="Close" type="object" invisible="state != 'active'"/>
+                        <field name="state" widget="statusbar"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name"/>
+                            </h1>
+                        </div>
+                        <group>
+                            <group>
+                                <field name="partner_id"/>
+                                <field name="agreement_date"/>
+                            </group>
+                            <group>
+                                <field name="total_financed_amount"/>
+                                <field name="total_balance"/>
+                            </group>
+                        </group>
+                        <notebook>
+                            <page string="Vehicles" name="vehicles">
+                                <field name="line_ids">
+                                    <list editable="bottom">
+                                        <field name="vehicle_id"/>
+                                        <field name="financed_amount" sum="Total Principal"/>
+                                        <field name="interest_rate"/>
+                                        <field name="start_date"/>
+                                        <field name="current_balance" sum="Total Balance"/>
+                                        <field name="state"/>
+                                    </list>
+                                </field>
+                            </page>
+                        </notebook>
+                    </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids"/>
+                        <field name="activity_ids"/>
+                        <field name="message_ids"/>
+                    </div>
+                </form>
+            </field>
+        </record>
+
+        <!-- Financing Agreement Line Graph View (Dashboard) -->
+        <record id="view_financing_agreement_line_graph" model="ir.ui.view">
+            <field name="name">financing.agreement.line.graph</field>
+            <field name="model">financing.agreement.line</field>
+            <field name="arch" type="xml">
+                <graph string="Financing Liability" type="bar">
+                    <field name="vehicle_id"/>
+                    <field name="current_balance" type="measure"/>
+                </graph>
+            </field>
+        </record>
+        
+        <record id="view_financing_agreement_line_pivot" model="ir.ui.view">
+            <field name="name">financing.agreement.line.pivot</field>
+            <field name="model">financing.agreement.line</field>
+            <field name="arch" type="xml">
+                <pivot string="Financing Analysis">
+                    <field name="agreement_id" type="row"/>
+                    <field name="vehicle_id" type="row"/>
+                    <field name="financed_amount" type="measure"/>
+                    <field name="current_balance" type="measure"/>
+                </pivot>
+            </field>
+        </record>
+
+        <!-- Actions -->
+        <record id="action_financing_agreement" model="ir.actions.act_window">
+            <field name="name">Financing Agreements</field>
+            <field name="res_model">financing.agreement</field>
+            <field name="view_mode">list,form</field>
+        </record>
+
+        <record id="action_financing_dashboard" model="ir.actions.act_window">
+            <field name="name">Financing Dashboard</field>
+            <field name="res_model">financing.agreement.line</field>
+            <field name="view_mode">graph,pivot</field>
+            <field name="domain">[('state', '=', 'active')]</field>
+        </record>
+
+        <!-- Menus -->
+        <menuitem id="menu_financing_agreement"
+                  name="Agreements"
+                  parent="menu_financing_root"
+                  action="action_financing_agreement"
+                  sequence="5"/>
+
+        <menuitem id="menu_financing_dashboard"
+                  name="Dashboard"
+                  parent="menu_financing_root"
+                  action="action_financing_dashboard"
+                  sequence="1"/>
+    </data>
+</odoo>
