@@ -17,6 +17,7 @@ class FinancingAgreement(models.Model):
     total_balance = fields.Monetary(string='Total Balance', compute='_compute_totals', currency_field='currency_id', store=True)
     total_interest_paid = fields.Monetary(string='Total Interest Paid', compute='_compute_totals', currency_field='currency_id', store=True)
     currency_id = fields.Many2one('res.currency', default=lambda self: self.env.company.currency_id)
+    vehicle_count = fields.Integer(string='Vehicles', compute='_compute_vehicle_count')
     
     state = fields.Selection([
         ('draft', 'Draft'),
@@ -31,6 +32,22 @@ class FinancingAgreement(models.Model):
             record.total_financed_amount = sum(record.line_ids.mapped('financed_amount'))
             record.total_balance = sum(record.line_ids.mapped('current_balance'))
             record.total_interest_paid = sum(record.line_ids.mapped('accumulated_interest'))
+
+    def _compute_vehicle_count(self):
+        for record in self:
+            record.vehicle_count = len(record.line_ids)
+
+    def action_view_vehicles(self):
+        self.ensure_one()
+        vehicles = self.line_ids.mapped('vehicle_id')
+        return {
+            'name': _('Financed Vehicles'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'product.template',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', vehicles.ids)],
+            'context': {'create': False},
+        }
 
     def action_activate(self):
         self.write({'state': 'active'})

@@ -29,6 +29,14 @@
                         <field name="state" widget="statusbar"/>
                     </header>
                     <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button name="action_view_vehicles"
+                                    type="object"
+                                    class="oe_stat_button"
+                                    icon="fa-car">
+                                <field name="vehicle_count" widget="statinfo" string="Vehicles"/>
+                            </button>
+                        </div>
                         <div class="oe_title">
                             <h1>
                                 <field name="partner_id" placeholder="Lender"/>

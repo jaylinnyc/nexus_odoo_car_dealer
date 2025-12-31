@@ -43,103 +43,20 @@
             <field name="model">product.template</field>
             <field name="inherit_id" ref="product.product_template_only_form_view"/>
             <field name="arch" type="xml">
-                <!-- Add Financing tab after Sales tab -->
+                <!-- Add Financing reference after Sales tab -->
                 <xpath expr="//notebook" position="inside">
-                    <page string="Financing" name="financing" invisible="not has_vendor_bill">
-                        <group string="Vendor Bill Information" invisible="not vendor_bill_id">
-                            <group>
-                                <field name="vendor_bill_id" readonly="1"/>
-                                <field name="vendor_bill_amount" readonly="1"/>
-                                <field name="vendor_bill_amount_residual" readonly="1"/>
-                            </group>
-                            <group>
-                                <field name="total_bills_amount" readonly="1" string="Total (with Landed Costs)"/>
-                                <field name="total_bills_residual" readonly="1" string="Total Amount Due"/>
-                            </group>
-                        </group>
-                        <group string="All Related Bills" invisible="not vendor_bill_ids" colspan="2">
-                            <field name="vendor_bill_ids" nolabel="1" readonly="1" context="{'tree_view_ref': 'account.view_invoice_tree'}"/>
-                        </group>
+                    <page string="Financing" name="financing" invisible="financing_agreement_count == 0">
                         <group>
-                            <group string="Financing Information">
-                                <field name="financing_type"/>
-                                <field name="financing_amount" invisible="financing_type == 'none'" required="financing_type != 'none'"/>
-                                <field name="financing_rate" invisible="financing_type == 'none'" required="financing_type != 'none'"/>
-                                <field name="financing_partner_id" invisible="financing_type == 'none'" required="financing_type == 'internal'"/>
-                                <field name="financing_expense_account_id" invisible="financing_type != 'internal'"/>
-                                <field name="financing_liability_account_id" invisible="financing_type != 'internal'"/>
-                            </group>
-                            <group string="Financing Status">
-                                <field name="financing_status" invisible="financing_type == 'none'"/>
-                                <field name="financing_start_date" invisible="financing_type == 'none'" readonly="financing_count > 0"/>
-                                <field name="financing_balance" invisible="financing_type != 'internal'"/>
-                                <field name="last_interest_bill_date" invisible="financing_type == 'none'"/>
-                                <field name="financing_journal_entry_id" invisible="financing_type != 'internal'"/>
-                            </group>
+                            <field name="financing_agreement_count" invisible="1"/>
                         </group>
-                        <div invisible="financing_type != 'internal'" class="oe_button_box" name="button_box">
+                        <div class="oe_button_box" name="button_box">
                             <button name="action_view_financing_agreements"
                                     type="object"
                                     class="oe_stat_button"
-                                    icon="fa-file-text-o"
-                                    invisible="financing_agreement_count == 0">
+                                    icon="fa-file-text-o">
                                 <field name="financing_agreement_count" widget="statinfo" string="Agreements"/>
                             </button>
-                            <button name="action_view_financing" 
-                                    type="object"
-                                    class="oe_stat_button"
-                                    icon="fa-dollar"
-                                    invisible="financing_count == 0">
-                                <field name="financing_count" widget="statinfo" string="Interest Bills"/>
-                            </button>
                         </div>
-                        <group invisible="financing_type != 'internal'">
-                            <button name="action_setup_floor_plan_financing" 
-                                    string="Setup Floor Plan Financing" 
-                                    type="object" 
-                                    class="oe_highlight"
-                                    invisible="financing_journal_entry_id or financing_type != 'internal'"
-                                    confirm="This will create a journal entry to pay the vendor bill and record the floor plan liability. Continue?"/>
-                            <button name="action_generate_interest_bill" 
-                                    string="Generate Interest Bill" 
-                                    type="object" 
-                                    class="oe_highlight"
-                                    invisible="financing_status != 'active' or financing_type != 'internal' or not financing_start_date or not financing_journal_entry_id"/>
-                        </group>
-                        <field name="financing_ids" invisible="financing_type == 'none'">
-                            <list create="false" edit="false" delete="state == 'draft'">
-                                <field name="bill_date"/>
-                                <field name="interest_amount"/>
-                                <field name="bill_id"/>
-                                <field name="state"/>
-                            </list>
-                        </field>
-                        <group string="Financing Transaction History" invisible="financing_type != 'internal'">
-                            <group>
-                                <button name="action_topup_floor_plan_financing" 
-                                        string="Top-Up Financing" 
-                                        type="object" 
-                                        class="btn-secondary"
-                                        invisible="not financing_journal_entry_id or financing_type != 'internal'"/>
-                                <button name="action_paydown_floor_plan_financing" 
-                                        string="Pay Down Financing" 
-                                        type="object" 
-                                        class="btn-secondary"
-                                        invisible="not financing_journal_entry_id or financing_type != 'internal' or financing_balance &lt;= 0"/>
-                            </group>
-                            <field name="financing_transaction_ids" nolabel="1">
-                                <list create="false" edit="false" delete="false"
-                                      decoration-success="transaction_type == 'initial'"
-                                      decoration-info="transaction_type == 'topup'"
-                                      decoration-warning="transaction_type == 'paydown'">
-                                    <field name="transaction_date"/>
-                                    <field name="transaction_type"/>
-                                    <field name="amount" widget="monetary"/>
-                                    <field name="balance_after" widget="monetary"/>
-                                    <field name="notes" optional="hide"/>
-                                </list>
-                            </field>
-                        </group>
                     </page>
                 </xpath>
             </field>
