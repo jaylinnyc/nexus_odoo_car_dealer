@@ -1145,13 +1145,17 @@ class VehicleFinancingTopupWizard(models.TransientModel):
         
         product = self.product_id
         
-        # Validate: Top-up amount cannot exceed total outstanding bills
-        total_outstanding = product.total_bills_residual
-        if self.topup_amount > total_outstanding:
+        # Validate: Total financing (current balance + top-up) cannot exceed total billed amount
+        total_billed = product.total_bills_amount
+        current_balance = product.financing_balance or 0
+        new_total = current_balance + self.topup_amount
+        if new_total > total_billed:
             raise UserError(_(
-                'The top-up amount (%(topup)s) cannot exceed the total outstanding bills (%(outstanding)s) for this vehicle.',
+                'The total financing amount (%(total)s = current %(current)s + top-up %(topup)s) cannot exceed the total billed amount (%(billed)s) for this vehicle.',
+                total=new_total,
+                current=current_balance,
                 topup=self.topup_amount,
-                outstanding=total_outstanding
+                billed=total_billed
             ))
         
         # Find all unpaid bills in chronological order
@@ -1299,6 +1303,14 @@ class VehicleFinancingTopupWizard(models.TransientModel):
         product.write({
             'financing_balance': new_balance,
         })
+        
+        # Update agreement line balance if exists
+        agreement_line = self.env['financing.agreement.line'].search([
+            ('vehicle_id', '=', product.id),
+            ('state', '=', 'active')
+        ], limit=1)
+        if agreement_line:
+            agreement_line.write({'current_balance': new_balance})
         
         # Check if top-up occurred in an already-billed period
         # This handles the edge case where interest was already charged on the old balance

@@ -282,15 +282,15 @@ class FinancingAgreementLine(models.Model):
 
     @api.constrains('financed_amount', 'vehicle_id')
     def _check_financed_amount_limit(self):
-        """Ensure financed amount does not exceed total outstanding bills for the vehicle"""
+        """Ensure financed amount does not exceed total billed amount for the vehicle"""
         for record in self:
             if record.vehicle_id and record.financed_amount:
-                total_outstanding = record.vehicle_id.total_bills_residual
-                if record.financed_amount > total_outstanding:
+                total_billed = record.vehicle_id.total_bills_amount
+                if record.financed_amount > total_billed:
                     raise UserError(_(
-                        'The financing amount (%(financed)s) cannot exceed the total outstanding bills (%(outstanding)s) for vehicle %(vehicle)s.',
+                        'The financing amount (%(financed)s) cannot exceed the total billed amount (%(billed)s) for vehicle %(vehicle)s.',
                         financed=record.financed_amount,
-                        outstanding=total_outstanding,
+                        billed=total_billed,
                         vehicle=record.vehicle_id.name
                     ))
 
