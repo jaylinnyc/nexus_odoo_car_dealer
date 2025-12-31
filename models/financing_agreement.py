@@ -50,6 +50,67 @@ class FinancingAgreement(models.Model):
                 vals['name'] = self.env['ir.sequence'].next_by_code('financing.agreement') or _('New')
         return super().create(vals_list)
 
+    def unlink(self):
+        """Override unlink to clean up all related journal entries, transactions, and interest bills."""
+        for record in self:
+            # Collect all related records
+            vehicle_ids = record.line_ids.mapped('vehicle_id')
+            
+            # Get all transactions for vehicles in this agreement
+            transactions = self.env['vehicle.financing.transaction'].search([
+                ('product_id', 'in', vehicle_ids.ids)
+            ])
+            
+            # Get all journal entries (from transactions and opening entries)
+            journal_entries = transactions.mapped('journal_entry_id')
+            journal_entries |= record.line_ids.mapped('journal_entry_id')
+            
+            # Get all interest bill records
+            interest_bills = self.env['vehicle.financing'].search([
+                ('agreement_line_id', 'in', record.line_ids.ids)
+            ])
+            # Also get interest bill journal entries
+            interest_journal_entries = interest_bills.mapped('bill_id')
+            journal_entries |= interest_journal_entries
+            
+            # Filter out empty records
+            journal_entries = journal_entries.filtered(lambda j: j.id)
+            
+            # Reset posted journal entries to draft first
+            posted_entries = journal_entries.filtered(lambda j: j.state == 'posted')
+            if posted_entries:
+                posted_entries.button_draft()
+            
+            # Delete journal entries
+            if journal_entries:
+                journal_entries.unlink()
+            
+            # Delete transactions (journal entries already deleted, so clear the reference first)
+            if transactions:
+                transactions.write({'journal_entry_id': False})
+                transactions.unlink()
+            
+            # Delete interest bill records (bill_id already deleted)
+            if interest_bills:
+                interest_bills.write({'bill_id': False})
+                interest_bills.unlink()
+            
+            # Reset vehicle financing fields
+            for vehicle in vehicle_ids:
+                vehicle.write({
+                    'financing_type': 'none',
+                    'financing_amount': 0,
+                    'financing_rate': 0,
+                    'financing_balance': 0,
+                    'financing_status': 'active',
+                    'financing_start_date': False,
+                    'financing_partner_id': False,
+                    'financing_journal_entry_id': False,
+                    'last_interest_bill_date': False,
+                })
+        
+        return super().unlink()
+
     @api.depends('partner_id', 'agreement_date')
     def _compute_display_name(self):
         for record in self:
