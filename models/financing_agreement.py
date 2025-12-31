@@ -61,42 +61,52 @@ class FinancingAgreement(models.Model):
                 ('product_id', 'in', vehicle_ids.ids)
             ])
             
-            # Get all journal entries (from transactions and opening entries)
-            journal_entries = transactions.mapped('journal_entry_id')
-            journal_entries |= record.line_ids.mapped('journal_entry_id')
-            
-            # Get all interest bill records
+            # Get all interest bill records FIRST (before we delete journal entries)
             interest_bills = self.env['vehicle.financing'].search([
                 ('agreement_line_id', 'in', record.line_ids.ids)
             ])
+            
+            # Collect all journal entries
+            journal_entries = transactions.mapped('journal_entry_id')
+            journal_entries |= record.line_ids.mapped('journal_entry_id')
             # Also get interest bill journal entries
             interest_journal_entries = interest_bills.mapped('bill_id')
             journal_entries |= interest_journal_entries
             
-            # Filter out empty records
-            journal_entries = journal_entries.filtered(lambda j: j.id)
+            # Filter out empty/deleted records
+            journal_entries = journal_entries.filtered(lambda j: j.exists())
+            
+            # Clear references BEFORE deleting to avoid cascade issues
+            # Clear transaction journal entry references
+            if transactions.exists():
+                transactions.write({'journal_entry_id': False})
+            
+            # Clear interest bill references
+            if interest_bills.exists():
+                interest_bills.write({'bill_id': False})
             
             # Reset posted journal entries to draft first
-            posted_entries = journal_entries.filtered(lambda j: j.state == 'posted')
+            posted_entries = journal_entries.filtered(lambda j: j.exists() and j.state == 'posted')
             if posted_entries:
                 posted_entries.button_draft()
             
-            # Delete journal entries
+            # Delete journal entries (now safe since references are cleared)
+            journal_entries = journal_entries.filtered(lambda j: j.exists())
             if journal_entries:
                 journal_entries.unlink()
             
-            # Delete transactions (journal entries already deleted, so clear the reference first)
+            # Delete transactions
+            transactions = transactions.filtered(lambda t: t.exists())
             if transactions:
-                transactions.write({'journal_entry_id': False})
                 transactions.unlink()
             
-            # Delete interest bill records (bill_id already deleted)
+            # Delete interest bill records
+            interest_bills = interest_bills.filtered(lambda b: b.exists())
             if interest_bills:
-                interest_bills.write({'bill_id': False})
                 interest_bills.unlink()
             
             # Reset vehicle financing fields
-            for vehicle in vehicle_ids:
+            for vehicle in vehicle_ids.filtered(lambda v: v.exists()):
                 vehicle.write({
                     'financing_type': 'none',
                     'financing_amount': 0,
