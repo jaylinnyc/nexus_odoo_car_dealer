@@ -27,6 +27,10 @@
                         <button name="action_activate" string="Activate" type="object" class="oe_highlight" invisible="state != 'draft'"/>
                         <field name="state" widget="statusbar" statusbar_visible="draft,active,closed"/>
                     </header>
+                    <field name="has_overbilled_lines" invisible="1"/>
+                    <div class="alert alert-warning" role="alert" invisible="not has_overbilled_lines">
+                        <strong>⚠️ Warning:</strong> One or more vehicles in this agreement have financing amounts that exceed their total billed amounts. This may indicate missing vendor bills or data migrated from a legacy system.
+                    </div>
                     <sheet>
                         <div class="oe_button_box" name="button_box">
                             <button name="action_view_vehicles"

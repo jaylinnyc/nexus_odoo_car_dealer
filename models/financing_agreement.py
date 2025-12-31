@@ -29,6 +29,13 @@ class FinancingAgreement(models.Model):
     interest_bill_ids = fields.One2many('vehicle.financing', compute='_compute_related_records')
     related_bill_ids = fields.Many2many('account.move', compute='_compute_related_records')
     
+    # Warning flag for overbilled lines
+    has_overbilled_lines = fields.Boolean(
+        string='Has Overbilled Lines',
+        compute='_compute_has_overbilled_lines',
+        help='Warning: One or more vehicles have financing amounts exceeding their billed amounts.'
+    )
+    
     state = fields.Selection([
         ('draft', 'Draft'),
         ('active', 'Active'),
@@ -58,6 +65,11 @@ class FinancingAgreement(models.Model):
             record.total_financed_amount = sum(record.line_ids.mapped('financed_amount'))
             record.total_balance = sum(record.line_ids.mapped('current_balance'))
             record.total_interest_paid = sum(record.line_ids.mapped('accumulated_interest'))
+
+    @api.depends('line_ids.has_overbilled_warning')
+    def _compute_has_overbilled_lines(self):
+        for record in self:
+            record.has_overbilled_lines = any(record.line_ids.mapped('has_overbilled_warning'))
 
     def _compute_vehicle_count(self):
         for record in self:
@@ -196,7 +208,8 @@ class FinancingAgreement(models.Model):
         # Find all products with financing
         products = self.env['product.template'].search([('financing_type', '!=', 'none')])
         Agreement = self.env['financing.agreement']
-        AgreementLine = self.env['financing.agreement.line']
+        # Use context to skip financing validation during migration
+        AgreementLine = self.env['financing.agreement.line'].with_context(skip_financing_validation=True)
         
         count = 0
         for product in products:
@@ -268,6 +281,14 @@ class FinancingAgreementLine(models.Model):
     # Link to interest bills
     interest_bill_ids = fields.One2many('vehicle.financing', 'agreement_line_id', string='Interest Bills')
     
+    # Warning flag for overbilled financing (migrated data)
+    has_overbilled_warning = fields.Boolean(
+        string='Financing Exceeds Bills',
+        compute='_compute_overbilled_warning',
+        store=True,
+        help='Warning: The financing amount exceeds the total billed amount for this vehicle.'
+    )
+    
     # Computed fields for stat buttons
     interest_bill_count = fields.Integer(string='Interest Bills', compute='_compute_counts')
     transaction_count = fields.Integer(string='Transactions', compute='_compute_counts')
@@ -280,9 +301,26 @@ class FinancingAgreementLine(models.Model):
             posted_bills = record.interest_bill_ids.filtered(lambda b: b.state == 'posted')
             record.accumulated_interest = sum(posted_bills.mapped('interest_amount'))
 
+    @api.depends('financed_amount', 'vehicle_id', 'vehicle_id.total_bills_amount')
+    def _compute_overbilled_warning(self):
+        """Check if financing amount exceeds total billed amount"""
+        for record in self:
+            if record.vehicle_id and record.financed_amount:
+                total_billed = record.vehicle_id.total_bills_amount
+                record.has_overbilled_warning = record.financed_amount > total_billed
+            else:
+                record.has_overbilled_warning = False
+
     @api.constrains('financed_amount', 'vehicle_id')
     def _check_financed_amount_limit(self):
-        """Ensure financed amount does not exceed total billed amount for the vehicle"""
+        """Ensure financed amount does not exceed total billed amount for the vehicle
+        
+        This validation is skipped during migration (context key: skip_financing_validation)
+        """
+        # Skip validation during migration
+        if self.env.context.get('skip_financing_validation'):
+            return
+        
         for record in self:
             if record.vehicle_id and record.financed_amount:
                 total_billed = record.vehicle_id.total_bills_amount
