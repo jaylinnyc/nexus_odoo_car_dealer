@@ -280,6 +280,20 @@ class FinancingAgreementLine(models.Model):
             posted_bills = record.interest_bill_ids.filtered(lambda b: b.state == 'posted')
             record.accumulated_interest = sum(posted_bills.mapped('interest_amount'))
 
+    @api.constrains('financed_amount', 'vehicle_id')
+    def _check_financed_amount_limit(self):
+        """Ensure financed amount does not exceed total outstanding bills for the vehicle"""
+        for record in self:
+            if record.vehicle_id and record.financed_amount:
+                total_outstanding = record.vehicle_id.total_bills_residual
+                if record.financed_amount > total_outstanding:
+                    raise UserError(_(
+                        'The financing amount (%(financed)s) cannot exceed the total outstanding bills (%(outstanding)s) for vehicle %(vehicle)s.',
+                        financed=record.financed_amount,
+                        outstanding=total_outstanding,
+                        vehicle=record.vehicle_id.name
+                    ))
+
     def _compute_counts(self):
         for record in self:
             record.interest_bill_count = len(record.interest_bill_ids)
@@ -390,3 +404,13 @@ class FinancingAgreementLine(models.Model):
                     body=_('Agreement automatically closed - all vehicles have been paid off.'),
                     subject=_('Agreement Closed')
                 )
+
+    @api.constrains('financed_amount', 'vehicle_id')
+    def _check_financed_amount(self):
+        for record in self:
+            if record.state == 'draft' and record.vehicle_id and record.financed_amount > record.vehicle_id.total_bills_residual:
+                 raise UserError(_('The financed amount (%s) cannot exceed the total outstanding bills (%s) for vehicle %s.') % (
+                    record.financed_amount, 
+                    record.vehicle_id.total_bills_residual,
+                    record.vehicle_id.name
+                ))

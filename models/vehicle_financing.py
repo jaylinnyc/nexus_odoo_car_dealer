@@ -1145,6 +1145,15 @@ class VehicleFinancingTopupWizard(models.TransientModel):
         
         product = self.product_id
         
+        # Validate: Top-up amount cannot exceed total outstanding bills
+        total_outstanding = product.total_bills_residual
+        if self.topup_amount > total_outstanding:
+            raise UserError(_(
+                'The top-up amount (%(topup)s) cannot exceed the total outstanding bills (%(outstanding)s) for this vehicle.',
+                topup=self.topup_amount,
+                outstanding=total_outstanding
+            ))
+        
         # Find all unpaid bills in chronological order
         unpaid_bills = self.env['account.move'].search([
             ('move_type', '=', 'in_invoice'),
