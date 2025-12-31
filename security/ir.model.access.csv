@@ -11,3 +11,5 @@ access_financing_agreement_user,financing.agreement.user,model_financing_agreeme
 access_financing_agreement_manager,financing.agreement.manager,model_financing_agreement,base.group_system,1,1,1,1
 access_financing_agreement_line_user,financing.agreement.line.user,model_financing_agreement_line,base.group_user,1,1,1,1
 access_financing_agreement_line_manager,financing.agreement.line.manager,model_financing_agreement_line,base.group_system,1,1,1,1
+access_financing_agreement_wizard_user,financing.agreement.wizard.user,model_financing_agreement_wizard,base.group_user,1,1,1,1
+access_financing_agreement_wizard_line_user,financing.agreement.wizard.line.user,model_financing_agreement_wizard_line,base.group_user,1,1,1,1

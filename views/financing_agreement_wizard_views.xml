@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Financing Agreement Wizard Form -->
+        <record id="view_financing_agreement_wizard_form" model="ir.ui.view">
+            <field name="name">financing.agreement.wizard.form</field>
+            <field name="model">financing.agreement.wizard</field>
+            <field name="arch" type="xml">
+                <form string="Create Financing Agreement">
+                    <sheet>
+                        <group>
+                            <group string="Agreement Details">
+                                <field name="partner_id"/>
+                                <field name="agreement_date"/>
+                                <field name="interest_rate"/>
+                            </group>
+                            <group string="Accounting">
+                                <field name="expense_account_id"/>
+                                <field name="liability_account_id"/>
+                            </group>
+                        </group>
+                        <group string="Select Vehicles to Finance">
+                            <field name="vehicle_line_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field name="selected"/>
+                                    <field name="vehicle_id"/>
+                                    <field name="vendor_bill_amount"/>
+                                    <field name="outstanding_amount"/>
+                                    <field name="financed_amount"/>
+                                </list>
+                            </field>
+                        </group>
+                    </sheet>
+                    <footer>
+                        <button string="Create Agreement" name="action_create_agreement" type="object" class="btn-primary"/>
+                        <button string="Cancel" class="btn-secondary" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <!-- Action to open wizard -->
+        <record id="action_financing_agreement_wizard" model="ir.actions.act_window">
+            <field name="name">New Financing Agreement</field>
+            <field name="res_model">financing.agreement.wizard</field>
+            <field name="view_mode">form</field>
+            <field name="target">new</field>
+        </record>
+
+        <!-- Menu item -->
+        <menuitem id="menu_financing_new_agreement"
+                  name="New Agreement"
+                  parent="menu_financing_root"
+                  action="action_financing_agreement_wizard"
+                  sequence="3"/>
+    </data>
+</odoo>

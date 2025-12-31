@@ -55,6 +55,7 @@ Car Dealer Customizations
         'views/cart_vehicle_info.xml',
         'views/reservation_views.xml',
         'views/financing_agreement_views.xml',
+        'views/financing_agreement_wizard_views.xml',
     ],
 
     # Only if you created new models and want demo data
