@@ -603,6 +603,79 @@ class FinancingAgreementLine(models.Model):
             'financing_balance': self.financed_amount,
             'last_interest_bill_date': self.start_date or fields.Date.today(),
         })
+        
+        # Generate backdated interest bills if start date is in the past
+        self._generate_backdated_interest_bills()
+
+    def _generate_backdated_interest_bills(self):
+        """Generate interest bills for each month from start_date to current date.
+        
+        Uses time-weighted daily interest calculation:
+        - First month: From start_date to end of that month (partial month)
+        - Subsequent months: Full months (1st to last day)
+        - Current month: Not billed yet (will be billed at month end)
+        """
+        self.ensure_one()
+        
+        from dateutil.relativedelta import relativedelta
+        
+        start_date = self.start_date or fields.Date.today()
+        today = fields.Date.today()
+        
+        # If start date is not in the past, nothing to do
+        if start_date >= today:
+            return
+        
+        vehicle = self.vehicle_id
+        if not vehicle or self.interest_rate <= 0:
+            return
+        
+        bills_generated = 0
+        
+        # First month: partial period from start_date to end of that month
+        first_month_end = (start_date + relativedelta(day=31))  # Last day of start month
+        
+        # Only bill the first month if it's completed (we're past that month)
+        if first_month_end < today:
+            try:
+                vehicle._create_interest_bill_for_date(
+                    bill_date=first_month_end,
+                    agreement_line=self,
+                    period_start=start_date  # Partial month from start_date
+                )
+                bills_generated += 1
+            except Exception as e:
+                self.message_post(
+                    body=_('Failed to generate interest bill for %s: %s') % (first_month_end, str(e))
+                )
+        
+        # Subsequent full months: from the month after start_date until last completed month
+        # Start from the 1st of the month after start_date's month
+        current_bill_date = (start_date + relativedelta(months=1)).replace(day=1)
+        current_bill_date = current_bill_date + relativedelta(day=31)  # End of that month
+        
+        while current_bill_date < today:
+            try:
+                # Full month - period_start will default to 1st of the month
+                vehicle._create_interest_bill_for_date(
+                    bill_date=current_bill_date,
+                    agreement_line=self
+                )
+                bills_generated += 1
+            except Exception as e:
+                self.message_post(
+                    body=_('Failed to generate interest bill for %s: %s') % (current_bill_date, str(e))
+                )
+            
+            # Move to next month's end
+            current_bill_date = current_bill_date + relativedelta(months=1, day=31)
+        
+        if bills_generated > 0:
+            self.message_post(
+                body=_('Generated %d backdated interest bill(s) from %s to %s') % (
+                    bills_generated, start_date, today
+                )
+            )
 
     def _reverse_financing(self):
         """Reverse all financing: cancel/delete journal entries and un-reconcile bills"""

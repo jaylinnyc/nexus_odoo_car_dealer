@@ -1002,6 +1002,154 @@ class ProductTemplate(models.Model):
             'target': 'current',
         }
 
+    def _create_interest_bill_for_date(self, bill_date, agreement_line=None, period_start=None):
+        """Create interest bill for a specific date using time-weighted calculation.
+        
+        Uses the same logic as _create_interest_bill:
+        - Daily interest = (Balance × Annual Rate / 100) / 365
+        - Interest is calculated for the exact number of days in the period
+        
+        Args:
+            bill_date: The date for the interest bill (typically end of month)
+            agreement_line: The financing.agreement.line record to link to
+            period_start: The start date of the billing period (defaults to first of bill_date's month)
+        """
+        self.ensure_one()
+        
+        if not agreement_line:
+            agreement_line = self.env['financing.agreement.line'].search([
+                ('vehicle_id', '=', self.id),
+                ('state', '=', 'active')
+            ], limit=1)
+        
+        if not agreement_line:
+            raise UserError(_('No active financing agreement line found for %s.') % self.name)
+        
+        # Use the financed amount from agreement line (principal before interest)
+        # For backdated bills, this is the original financed amount
+        principal = agreement_line.financed_amount
+        annual_rate = agreement_line.interest_rate
+        
+        if principal <= 0 or annual_rate <= 0:
+            return  # Nothing to bill
+        
+        # Determine the billing period
+        # Default period_start is the first day of the bill_date's month
+        if not period_start:
+            period_start = bill_date.replace(day=1)
+        
+        # Period end is the last day of the bill_date's month
+        period_end = (bill_date + relativedelta(day=31))
+        
+        # Calculate days in the billing period
+        days_in_period = (period_end - period_start).days + 1
+        
+        # Time-weighted daily interest calculation (same as existing method)
+        # Daily Interest = (Balance × Annual Rate / 100) / 365
+        daily_interest = (principal * annual_rate / 100) / 365
+        total_interest = daily_interest * days_in_period
+        
+        if total_interest <= 0:
+            return
+        
+        # Build interest description (matching existing format)
+        interest_description = _('Interest charge - %s\nVehicle: %s\nPeriod: %s to %s\n\nTime-weighted calculation:\n  $%s @ %.2f%% for %d days = $%.2f\n\nTotal Interest: $%.2f') % (
+            bill_date.strftime('%B %Y'),
+            self.name,
+            period_start.strftime('%m/%d/%Y'),
+            period_end.strftime('%m/%d/%Y'),
+            '{:,.2f}'.format(principal),
+            annual_rate,
+            days_in_period,
+            total_interest,
+            total_interest
+        )
+        
+        # Get expense account
+        expense_account = agreement_line.expense_account_id or self.financing_expense_account_id
+        if not expense_account:
+            expense_account = self.env.ref('nexus_odoo_car_dealer.account_interest_expense', raise_if_not_found=False)
+        if not expense_account:
+            expense_account = self.env['account.account'].search([
+                ('account_type', '=', 'expense'),
+                '|', ('name', 'ilike', 'interest'), ('code', 'ilike', 'interest')
+            ], limit=1)
+        if not expense_account:
+            raise UserError(_('Please configure an interest expense account.'))
+        
+        # Get interest payable account
+        interest_payable_account = self.env.ref('nexus_odoo_car_dealer.account_interest_payable', raise_if_not_found=False)
+        if not interest_payable_account:
+            interest_payable_account = self.env['account.account'].search([
+                ('account_type', '=', 'liability_payable'),
+                '|', ('name', 'ilike', 'interest'), ('code', 'ilike', 'interest')
+            ], limit=1)
+        if not interest_payable_account:
+            # Fallback to expense account as payable (for simpler setups)
+            interest_payable_account = expense_account
+        
+        # Get journal
+        journal = self.env['account.journal'].search([
+            ('type', '=', 'general'),
+            ('company_id', '=', self.env.company.id)
+        ], limit=1)
+        
+        if not journal:
+            raise UserError(_('No general journal found.'))
+        
+        # Prepare analytic distribution
+        analytic_dist = {str(self.analytic_account_id.id): 100.0} if self.analytic_account_id else {}
+        
+        # Create journal entry (same structure as existing method)
+        # Debit: Interest Expense (P&L) - Records the cost
+        # Credit: Interest Payable (Liability) - Tracks amount owed to financing partner
+        journal_entry_vals = {
+            'move_type': 'entry',
+            'journal_id': journal.id,
+            'date': bill_date,
+            'ref': _('Interest - %s - %s') % (self.name, bill_date.strftime('%B %Y')),
+            'line_ids': [
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': expense_account.id,
+                    'partner_id': agreement_line.partner_id.id,
+                    'debit': total_interest,
+                    'credit': 0,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': interest_payable_account.id,
+                    'partner_id': agreement_line.partner_id.id,
+                    'debit': 0,
+                    'credit': total_interest,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+            ],
+        }
+        
+        bill = self.env['account.move'].create(journal_entry_vals)
+        bill.action_post()
+        
+        # Create financing record linked to agreement line
+        self.env['vehicle.financing'].create({
+            'product_id': self.id,
+            'bill_date': bill_date,
+            'interest_amount': total_interest,
+            'bill_id': bill.id,
+            'agreement_line_id': agreement_line.id,
+        })
+        
+        # Update vehicle last bill date (use max to not overwrite later dates)
+        if not self.last_interest_bill_date or bill_date > self.last_interest_bill_date:
+            self.write({'last_interest_bill_date': bill_date})
+        
+        # Update financing balance
+        self.write({'financing_balance': self.financing_balance + total_interest})
+        
+        # Update agreement line balance (interest adds to the amount owed)
+        agreement_line.financed_amount += total_interest
+
     def action_view_financing(self):
         """View financing history for this vehicle."""
         self.ensure_one()
