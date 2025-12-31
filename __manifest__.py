@@ -43,6 +43,7 @@ Car Dealer Customizations
         'data/tax_data.xml',
         'data/appointment_data.xml',
         'data/financing_cron.xml',
+        'data/purchase_data.xml',
 
         # Views
         'views/test.xml',

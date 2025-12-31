@@ -25,6 +25,8 @@
                 <form string="Financing Agreement" create="false">
                     <header>
                         <button name="action_activate" string="Activate" type="object" class="oe_highlight" invisible="state != 'draft'"/>
+                        <button name="action_reset_to_draft" string="Reset to Draft" type="object" class="btn-secondary" invisible="state != 'active'" confirm="Are you sure you want to reset this agreement to draft? This will reverse all journal entries and un-pay all vendor bills."/>
+                        <button name="action_close" string="Close Agreement" type="object" invisible="state != 'active'"/>
                         <field name="state" widget="statusbar" statusbar_visible="draft,active,closed"/>
                     </header>
                     <field name="has_overbilled_lines" invisible="1"/>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Set default Purchase Control Policy to "On ordered quantities" -->
+    <!-- This creates a bill when the PO is confirmed, not when goods are received -->
+    
+    <!-- Set default on product template field -->
+    <record id="product.product_template_purchase_method_default" model="ir.default">
+        <field name="field_id" ref="purchase.field_product_template__purchase_method"/>
+        <field name="json_value">"purchase"</field>
+    </record>
+    
+</odoo>

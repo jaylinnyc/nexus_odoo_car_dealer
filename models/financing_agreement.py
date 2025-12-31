@@ -237,10 +237,32 @@ class FinancingAgreement(models.Model):
         }
 
     def action_activate(self):
-        """Activate the agreement and all its lines"""
-        self.write({'state': 'active'})
-        for line in self.line_ids:
-            line.state = 'active'
+        """Activate the agreement and all its lines, pay vendor bills, create journal entries"""
+        for record in self:
+            if record.state != 'draft':
+                raise UserError(_('Only draft agreements can be activated.'))
+            
+            # Activate each line and set up financing
+            for line in record.line_ids:
+                line._setup_financing()
+                line.state = 'active'
+            
+            record.write({'state': 'active'})
+            record.message_post(body=_('Agreement activated. All vendor bills have been paid via floor plan financing.'))
+
+    def action_reset_to_draft(self):
+        """Reset agreement to draft, reverse all journal entries and bill payments"""
+        for record in self:
+            if record.state != 'active':
+                raise UserError(_('Only active agreements can be reset to draft.'))
+            
+            # Reset each line
+            for line in record.line_ids:
+                line._reverse_financing()
+                line.state = 'draft'
+            
+            record.write({'state': 'draft'})
+            record.message_post(body=_('Agreement reset to draft. All journal entries and bill payments have been reversed.'))
 
     def action_close(self):
         """Close the agreement - only allowed when all lines are paid off or have zero balance"""
@@ -423,6 +445,227 @@ class FinancingAgreementLine(models.Model):
     def _compute_name(self):
         for record in self:
             record.name = f"{record.agreement_id.name} - {record.vehicle_id.name}"
+
+    def _setup_financing(self):
+        """Set up floor plan financing: create journal entry and pay vendor bills.
+        
+        This replicates the logic from product.template.action_setup_floor_plan_financing
+        """
+        self.ensure_one()
+        vehicle = self.vehicle_id
+        
+        if not vehicle:
+            raise UserError(_('No vehicle linked to this financing line.'))
+        
+        if not self.financed_amount or self.financed_amount <= 0:
+            raise UserError(_('Please set a valid financing amount for %s.') % vehicle.name)
+        
+        if self.journal_entry_id:
+            raise UserError(_('Financing has already been set up for %s.') % vehicle.name)
+        
+        # Find all unpaid vendor bills for this vehicle
+        unpaid_bills = vehicle.vendor_bill_ids.filtered(
+            lambda b: b.state == 'posted' and b.payment_state in ['not_paid', 'partial']
+        ).sorted(key=lambda b: (b.invoice_date or fields.Date.today(), b.id))
+        
+        if not unpaid_bills:
+            raise UserError(_('No unpaid vendor bills found for %s.') % vehicle.name)
+        
+        # Get the liability account
+        liability_account = self.liability_account_id
+        if not liability_account:
+            liability_account = self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False)
+        
+        if not liability_account:
+            liability_account = self.env['account.account'].search([
+                ('account_type', 'in', ['liability_current', 'liability_non_current', 'liability_payable']),
+                '|', ('name', 'ilike', 'floor plan'), ('name', 'ilike', 'payable')
+            ], limit=1)
+        
+        if not liability_account:
+            raise UserError(_('Please configure a Floor Plan Liability account.'))
+        
+        # Get the journal
+        journal = self.env['account.journal'].search([
+            ('type', '=', 'general'),
+            ('company_id', '=', self.env.company.id)
+        ], limit=1)
+        
+        if not journal:
+            raise UserError(_('No general journal found.'))
+        
+        # Prepare analytic distribution
+        analytic_dist = {str(vehicle.analytic_account_id.id): 100.0} if vehicle.analytic_account_id else {}
+        
+        # Build bill payment distribution
+        remaining_amount = self.financed_amount
+        bill_payments = []
+        
+        for bill in unpaid_bills:
+            if remaining_amount <= 0:
+                break
+            
+            amount_due = bill.amount_residual
+            payment_amount = min(remaining_amount, amount_due)
+            payable_account = bill.line_ids.filtered(
+                lambda l: l.account_id.account_type == 'liability_payable'
+            )
+            
+            if payable_account:
+                bill_payments.append({
+                    'bill': bill,
+                    'amount': payment_amount,
+                    'account': payable_account[0].account_id,
+                    'partner': bill.partner_id,
+                })
+                remaining_amount -= payment_amount
+        
+        if not bill_payments:
+            raise UserError(_('Could not allocate financing to any bills for %s.') % vehicle.name)
+        
+        # Build journal entry line items
+        line_items = []
+        bills_paid_list = []
+        
+        for payment in bill_payments:
+            line_items.append((0, 0, {
+                'name': _('Floor plan payment - %s') % payment['bill'].name,
+                'account_id': payment['account'].id,
+                'partner_id': payment['partner'].id,
+                'debit': payment['amount'],
+                'credit': 0,
+                'analytic_distribution': analytic_dist or False,
+            }))
+            bills_paid_list.append('%s: %s' % (payment['bill'].name, payment['amount']))
+        
+        # Credit: Floor Plan Payable
+        line_items.append((0, 0, {
+            'name': _('Floor plan financing - %s') % vehicle.name,
+            'account_id': liability_account.id,
+            'partner_id': self.partner_id.id,
+            'debit': 0,
+            'credit': self.financed_amount,
+            'analytic_distribution': analytic_dist or False,
+        }))
+        
+        # Create and post journal entry
+        journal_entry = self.env['account.move'].create({
+            'move_type': 'entry',
+            'journal_id': journal.id,
+            'date': self.start_date or fields.Date.today(),
+            'ref': _('Floor Plan Financing - %s') % vehicle.name,
+            'narration': _('Floor plan financing for %s\nAmount: %s\nLender: %s\n\nBills Paid:\n%s') % (
+                vehicle.name, self.financed_amount, self.partner_id.name, '\n'.join(bills_paid_list)
+            ),
+            'line_ids': line_items,
+        })
+        journal_entry.action_post()
+        
+        # Reconcile bill payments
+        for payment in bill_payments:
+            payable_line = journal_entry.line_ids.filtered(
+                lambda l: l.account_id == payment['account'] and l.partner_id == payment['partner']
+            )
+            bill_payable_line = payment['bill'].line_ids.filtered(
+                lambda l: l.account_id.account_type == 'liability_payable'
+            )
+            
+            if payable_line and bill_payable_line:
+                (payable_line + bill_payable_line).reconcile()
+            
+            payment['bill'].message_post(
+                body=_('<b>Floor Plan Financing Applied</b><br/>'
+                       'Amount: %s<br/>Lender: %s<br/>Journal Entry: %s') % (
+                    payment['amount'], self.partner_id.name, journal_entry.name
+                )
+            )
+        
+        # Create financing transaction record
+        self.env['vehicle.financing.transaction'].create({
+            'product_id': vehicle.id,
+            'transaction_type': 'initial',
+            'amount': self.financed_amount,
+            'date': self.start_date or fields.Date.today(),
+            'balance_after': self.financed_amount,
+            'journal_entry_id': journal_entry.id,
+            'notes': _('Initial floor plan financing via Agreement %s') % self.agreement_id.name,
+        })
+        
+        # Update the line with journal entry reference
+        self.write({
+            'journal_entry_id': journal_entry.id,
+            'current_balance': self.financed_amount,
+        })
+        
+        # Update vehicle
+        vehicle.write({
+            'financing_journal_entry_id': journal_entry.id,
+            'financing_balance': self.financed_amount,
+            'last_interest_bill_date': self.start_date or fields.Date.today(),
+        })
+
+    def _reverse_financing(self):
+        """Reverse all financing: cancel/delete journal entries and un-reconcile bills"""
+        self.ensure_one()
+        vehicle = self.vehicle_id
+        
+        if not self.journal_entry_id:
+            # Nothing to reverse
+            return
+        
+        # Get all transactions for this vehicle
+        transactions = self.env['vehicle.financing.transaction'].search([
+            ('product_id', '=', vehicle.id)
+        ])
+        
+        # Collect all journal entries to reverse
+        journal_entries = transactions.mapped('journal_entry_id')
+        journal_entries |= self.journal_entry_id
+        journal_entries = journal_entries.filtered(lambda j: j.exists())
+        
+        # Un-reconcile and reverse journal entries
+        for je in journal_entries:
+            if je.state == 'posted':
+                # Un-reconcile all lines first
+                for line in je.line_ids:
+                    if line.matched_debit_ids or line.matched_credit_ids:
+                        line.remove_move_reconcile()
+                # Reset to draft
+                je.button_draft()
+            # Delete the journal entry
+            je.unlink()
+        
+        # Clear transaction journal entry references and delete
+        if transactions:
+            transactions.write({'journal_entry_id': False})
+            transactions.unlink()
+        
+        # Delete interest bill records (vehicle.financing)
+        interest_bills = self.env['vehicle.financing'].search([
+            ('agreement_line_id', '=', self.id)
+        ])
+        if interest_bills:
+            # Also need to reverse/delete their bills
+            bill_moves = interest_bills.mapped('bill_id').filtered(lambda b: b.exists())
+            for bill in bill_moves:
+                if bill.state == 'posted':
+                    bill.button_draft()
+                bill.unlink()
+            interest_bills.write({'bill_id': False})
+            interest_bills.unlink()
+        
+        # Reset vehicle financing fields
+        vehicle.write({
+            'financing_journal_entry_id': False,
+            'financing_balance': 0,
+            'last_interest_bill_date': False,
+        })
+        
+        # Clear line journal entry reference and reset balance
+        self.write({
+            'journal_entry_id': False,
+            'current_balance': self.financed_amount,
+        })
 
     def action_view_vehicle_details(self):
         """Open the vehicle financing line detail form"""
