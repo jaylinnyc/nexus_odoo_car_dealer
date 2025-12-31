@@ -969,12 +969,19 @@ class ProductTemplate(models.Model):
         # Auto-post the journal entry
         bill.action_post()
         
-        # Create financing record
+        # Find the agreement line for this vehicle
+        agreement_line = self.env['financing.agreement.line'].search([
+            ('vehicle_id', '=', self.id),
+            ('state', '=', 'active')
+        ], limit=1)
+        
+        # Create financing record linked to agreement line
         financing_record = self.env['vehicle.financing'].create({
             'product_id': self.id,
             'bill_date': bill_date,
             'interest_amount': total_interest,
             'bill_id': bill.id,
+            'agreement_line_id': agreement_line.id if agreement_line else False,
         })
         
         # Update last bill date and increase floor plan balance
@@ -982,6 +989,10 @@ class ProductTemplate(models.Model):
             'last_interest_bill_date': bill_date,
             'financing_balance': self.financing_balance + total_interest,
         })
+        
+        # Update agreement line balance if linked
+        if agreement_line:
+            agreement_line.financed_amount += total_interest
         
         return {
             'type': 'ir.actions.act_window',
@@ -1476,18 +1487,31 @@ class VehicleFinancingTopupWizard(models.TransientModel):
         bill = self.env['account.move'].create(journal_entry_vals)
         bill.action_post()
         
-        # Create financing record
+        # Find the agreement line for this vehicle
+        agreement_line = self.env['financing.agreement.line'].search([
+            ('vehicle_id', '=', product.id),
+            ('state', '=', 'active')
+        ], limit=1)
+        
+        # Create financing record linked to agreement line
         self.env['vehicle.financing'].create({
             'product_id': product.id,
             'bill_date': original_bill_date,
             'interest_amount': supplemental_interest,
             'bill_id': bill.id,
+            'agreement_line_id': agreement_line.id if agreement_line else False,
         })
         
         # Update financing balance
         product.write({
             'financing_balance': product.financing_balance + supplemental_interest,
         })
+        
+        # Also update the agreement line balance if exists
+        if agreement_line:
+            agreement_line.write({
+                'current_balance': agreement_line.current_balance + supplemental_interest,
+            })
         
         # Add message to product
         product.message_post(
