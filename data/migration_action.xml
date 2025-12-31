@@ -3,49 +3,28 @@
     <data>
         <record id="action_migrate_financing_data" model="ir.actions.server">
             <field name="name">Migrate Financing Data</field>
-            <field name="model_id" ref="product.model_product_template"/>
-            <field name="binding_model_id" ref="product.model_product_template"/>
+            <field name="model_id" ref="model_financing_agreement"/>
             <field name="state">code</field>
             <field name="code">
-# Find all products with financing
-products = env['product.template'].search([('financing_type', '!=', 'none')])
-Agreement = env['financing.agreement']
-AgreementLine = env['financing.agreement.line']
-
-for product in products:
-    # Check if already migrated (optional check if you run multiple times)
-    existing_line = AgreementLine.search([('vehicle_id', '=', product.id)], limit=1)
-    if existing_line:
-        continue
-
-    # Create Agreement (One per vehicle for safety/simplicity in migration)
-    agreement = Agreement.create({
-        'partner_id': product.financing_partner_id.id or env.user.partner_id.id, # Fallback if missing
-        'agreement_date': product.financing_start_date or fields.Date.today(),
-        'state': 'active' if product.financing_status == 'active' else 'closed',
-    })
-
-    # Create Agreement Line
-    line = AgreementLine.create({
-        'agreement_id': agreement.id,
-        'vehicle_id': product.id,
-        'financed_amount': product.financing_amount,
-        'interest_rate': product.financing_rate,
-        'start_date': product.financing_start_date or fields.Date.today(),
-        'current_balance': product.financing_balance,
-        'state': 'active' if product.financing_status == 'active' else 'paid_off',
-        'expense_account_id': product.financing_expense_account_id.id,
-        'liability_account_id': product.financing_liability_account_id.id,
-        'journal_entry_id': product.financing_journal_entry_id.id,
-    })
-
-    # Link existing interest bills to the new line
-    interest_bills = env['vehicle.financing'].search([('product_id', '=', product.id)])
-    interest_bills.write({'agreement_line_id': line.id})
-
-# Log result
-log("Migrated financing for %s vehicles" % len(products))
+count = model.migrate_old_data()
+action = {
+    'type': 'ir.actions.client',
+    'tag': 'display_notification',
+    'params': {
+        'title': 'Migration Complete',
+        'message': 'Successfully migrated %s vehicles to new financing structure.' % count,
+        'type': 'success',
+        'sticky': False,
+    }
+}
             </field>
         </record>
+
+        <!-- Menu item to run migration -->
+        <menuitem id="menu_migrate_financing"
+                  name="Run Migration Script"
+                  parent="menu_financing_root"
+                  action="action_migrate_financing_data"
+                  sequence="99"/>
     </data>
 </odoo>

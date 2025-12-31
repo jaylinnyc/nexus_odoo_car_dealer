@@ -47,6 +47,49 @@ class FinancingAgreement(models.Model):
         for line in self.line_ids:
             line.state = 'paid_off'
 
+    @api.model
+    def migrate_old_data(self):
+        """Migrate data from product.template to financing.agreement"""
+        # Find all products with financing
+        products = self.env['product.template'].search([('financing_type', '!=', 'none')])
+        Agreement = self.env['financing.agreement']
+        AgreementLine = self.env['financing.agreement.line']
+        
+        count = 0
+        for product in products:
+            # Check if already migrated
+            existing_line = AgreementLine.search([('vehicle_id', '=', product.id)], limit=1)
+            if existing_line:
+                continue
+        
+            # Create Agreement (One per vehicle for safety/simplicity in migration)
+            agreement = Agreement.create({
+                'partner_id': product.financing_partner_id.id or self.env.user.partner_id.id, # Fallback if missing
+                'agreement_date': product.financing_start_date or fields.Date.today(),
+                'state': 'active' if product.financing_status == 'active' else 'closed',
+            })
+        
+            # Create Agreement Line
+            line = AgreementLine.create({
+                'agreement_id': agreement.id,
+                'vehicle_id': product.id,
+                'financed_amount': product.financing_amount,
+                'interest_rate': product.financing_rate,
+                'start_date': product.financing_start_date or fields.Date.today(),
+                'current_balance': product.financing_balance,
+                'state': 'active' if product.financing_status == 'active' else 'paid_off',
+                'expense_account_id': product.financing_expense_account_id.id,
+                'liability_account_id': product.financing_liability_account_id.id,
+                'journal_entry_id': product.financing_journal_entry_id.id,
+            })
+        
+            # Link existing interest bills to the new line
+            interest_bills = self.env['vehicle.financing'].search([('product_id', '=', product.id)])
+            interest_bills.write({'agreement_line_id': line.id})
+            count += 1
+            
+        return count
+
 
 class FinancingAgreementLine(models.Model):
     _name = 'financing.agreement.line'
