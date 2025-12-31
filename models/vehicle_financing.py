@@ -1876,6 +1876,7 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
         
         # Create financing transaction record
         new_balance = product.financing_balance - self.paydown_amount
+        original_balance = product.financing_balance  # Save for final interest calculation
         self.env['vehicle.financing.transaction'].create({
             'product_id': product.id,
             'transaction_date': self.paydown_date,
@@ -1902,7 +1903,7 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
             agreement_line.write({'current_balance': new_balance})
             if new_balance <= 0:
                 # Generate final prorated interest bill before marking as paid off
-                self._generate_final_interest_bill(product, agreement_line)
+                self._generate_final_interest_bill(product, agreement_line, original_balance)
                 agreement_line.action_mark_paid_off()
         
         # Add message to product
@@ -1942,16 +1943,21 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
             'target': 'current',
         }
 
-    def _generate_final_interest_bill(self, product, agreement_line):
+    def _generate_final_interest_bill(self, product, agreement_line, original_balance=None):
         """Generate a final prorated interest bill from the last bill date to the payoff date.
         
         This ensures interest is properly charged up to the exact day of payoff.
         Uses time-weighted daily interest calculation.
+        
+        Args:
+            product: The product.template (vehicle) being paid off
+            agreement_line: The financing.agreement.line record
+            original_balance: The financing balance before payoff (required for accurate interest calc)
         """
         if not agreement_line or agreement_line.interest_rate <= 0:
             return
         
-        # Determine the period start (day after last interest bill)
+        # Determine the period start (day after last interest bill, or start date)
         if product.last_interest_bill_date:
             period_start = product.last_interest_bill_date + relativedelta(days=1)
         elif agreement_line.start_date:
@@ -1972,9 +1978,9 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
         if days_in_period <= 0:
             return
         
-        # Use the current balance (before payoff) as the principal for interest calculation
-        # This is the balance that was accruing interest
-        principal = product.financing_balance
+        # Use the original balance (before payoff) as the principal for interest calculation
+        # This is passed in because product.financing_balance has already been updated
+        principal = original_balance if original_balance is not None else product.financing_balance
         annual_rate = agreement_line.interest_rate
         
         if principal <= 0 or annual_rate <= 0:
