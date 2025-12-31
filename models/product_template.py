@@ -230,7 +230,6 @@ class ProductTemplate(models.Model):
                 product.total_bills_amount = 0
                 product.total_bills_residual = 0
 
-    @api.depends('vehicle_id')
     def _compute_financing_agreement_count(self):
         for record in self:
             record.financing_agreement_count = self.env['financing.agreement.line'].search_count([('vehicle_id', '=', record.id)])
