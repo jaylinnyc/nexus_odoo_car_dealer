@@ -7,7 +7,6 @@ class FinancingAgreement(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'agreement_date desc, id desc'
 
-    name = fields.Char(string='Agreement Reference', required=True, copy=False, readonly=True, default=lambda self: _('New'))
     partner_id = fields.Many2one('res.partner', string='Lender', required=True, tracking=True)
     agreement_date = fields.Date(string='Agreement Date', default=fields.Date.today, required=True, tracking=True)
     active = fields.Boolean(default=True)
@@ -25,13 +24,6 @@ class FinancingAgreement(models.Model):
         ('closed', 'Closed'),
         ('cancelled', 'Cancelled')
     ], string='Status', default='draft', tracking=True)
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        for vals in vals_list:
-            if vals.get('name', _('New')) == _('New'):
-                vals['name'] = self.env['ir.sequence'].next_by_code('financing.agreement') or _('New')
-        return super().create(vals_list)
 
     @api.depends('line_ids.financed_amount', 'line_ids.current_balance', 'line_ids.accumulated_interest')
     def _compute_totals(self):

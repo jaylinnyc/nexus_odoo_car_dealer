@@ -7,7 +7,6 @@
             <field name="model">financing.agreement</field>
             <field name="arch" type="xml">
                 <list string="Financing Agreements">
-                    <field name="name"/>
                     <field name="partner_id"/>
                     <field name="agreement_date"/>
                     <field name="total_financed_amount"/>
@@ -32,15 +31,15 @@
                     <sheet>
                         <div class="oe_title">
                             <h1>
-                                <field name="name"/>
+                                <field name="partner_id" placeholder="Lender"/>
                             </h1>
                         </div>
                         <group>
-                            <group>
-                                <field name="partner_id"/>
+                            <group string="Agreement Details">
                                 <field name="agreement_date"/>
+                                <field name="state" invisible="1"/>
                             </group>
-                            <group>
+                            <group string="Summary">
                                 <field name="total_financed_amount"/>
                                 <field name="total_balance"/>
                                 <field name="total_interest_paid"/>
@@ -58,6 +57,43 @@
                                         <field name="accumulated_interest" sum="Total Interest"/>
                                         <field name="state"/>
                                     </list>
+                                    <form string="Vehicle Financing">
+                                        <sheet>
+                                            <group>
+                                                <group string="Vehicle">
+                                                    <field name="vehicle_id"/>
+                                                    <field name="start_date"/>
+                                                    <field name="end_date"/>
+                                                    <field name="state"/>
+                                                </group>
+                                                <group string="Financing Terms">
+                                                    <field name="financed_amount"/>
+                                                    <field name="interest_rate"/>
+                                                    <field name="current_balance"/>
+                                                    <field name="accumulated_interest"/>
+                                                </group>
+                                            </group>
+                                            <group>
+                                                <group string="Accounting">
+                                                    <field name="expense_account_id"/>
+                                                    <field name="liability_account_id"/>
+                                                    <field name="journal_entry_id"/>
+                                                </group>
+                                            </group>
+                                            <notebook>
+                                                <page string="Interest Bills" name="interest_bills">
+                                                    <field name="interest_bill_ids">
+                                                        <list>
+                                                            <field name="bill_date"/>
+                                                            <field name="interest_amount"/>
+                                                            <field name="bill_id"/>
+                                                            <field name="state"/>
+                                                        </list>
+                                                    </field>
+                                                </page>
+                                            </notebook>
+                                        </sheet>
+                                    </form>
                                 </field>
                             </page>
                         </notebook>
@@ -77,7 +113,8 @@
             <field name="model">financing.agreement.line</field>
             <field name="arch" type="xml">
                 <graph string="Financing Liability" type="bar" stacked="True">
-                    <field name="partner_id" type="row"/>
+                    <field name="vehicle_id" type="row"/>
+                    <field name="partner_id" type="col"/>
                     <field name="current_balance" type="measure"/>
                     <field name="accumulated_interest" type="measure"/>
                 </graph>
@@ -89,8 +126,8 @@
             <field name="model">financing.agreement.line</field>
             <field name="arch" type="xml">
                 <pivot string="Financing Analysis">
-                    <field name="partner_id" type="row"/>
-                    <field name="agreement_id" type="row"/>
+                    <field name="vehicle_id" type="row"/>
+                    <field name="partner_id" type="col"/>
                     <field name="financed_amount" type="measure"/>
                     <field name="current_balance" type="measure"/>
                     <field name="accumulated_interest" type="measure"/>
