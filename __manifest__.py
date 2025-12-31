@@ -55,9 +55,6 @@ Car Dealer Customizations
         'views/reservation_views.xml',
         'views/financing_agreement_views.xml',
         'views/financing_agreement_wizard_views.xml',
-        
-        # Migration (must be after financing_views.xml which defines menu_financing_root)
-        'data/migration_action.xml',
     ],
 
     'assets': {
