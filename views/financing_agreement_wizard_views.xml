@@ -23,14 +23,14 @@
                             <field name="multiple_vehicles"/>
                         </group>
                         <group string="Vehicle to Finance" invisible="multiple_vehicles">
-                            <field name="vehicle_id" required="not multiple_vehicles"/>
+                            <field name="vehicle_id" required="not multiple_vehicles" domain="[('categ_id.name', '=', 'Vehicles')]"/>
                             <field name="financed_amount" required="not multiple_vehicles"/>
                         </group>
                         <group string="Select Vehicles to Finance" invisible="not multiple_vehicles">
                             <field name="vehicle_line_ids" nolabel="1">
                                 <list editable="bottom">
                                     <field name="selected"/>
-                                    <field name="vehicle_id"/>
+                                    <field name="vehicle_id" domain="[('categ_id.name', '=', 'Vehicles')]"/>
                                     <field name="vendor_bill_amount"/>
                                     <field name="outstanding_amount"/>
                                     <field name="financed_amount"/>

@@ -11,7 +11,11 @@ class FinancingAgreementWizard(models.TransientModel):
     interest_rate = fields.Float(string='Annual Interest Rate (%)', required=True, default=0.0)
     
     multiple_vehicles = fields.Boolean(string='Finance Multiple Vehicles', default=False)
-    vehicle_id = fields.Many2one('product.template', string='Vehicle')
+    vehicle_id = fields.Many2one(
+        'product.template',
+        string='Vehicle',
+        domain="[('categ_id.name', '=', 'Vehicles')]"
+    )
     financed_amount = fields.Monetary(string='Amount to Finance', currency_field='currency_id')
     currency_id = fields.Many2one('res.currency', default=lambda self: self.env.company.currency_id)
     
@@ -33,7 +37,10 @@ class FinancingAgreementWizard(models.TransientModel):
     @api.model
     def _get_eligible_vehicles(self):
         """Get vehicles with outstanding bills eligible for financing"""
-        products = self.env['product.template'].search([('financing_type', '=', 'none')])
+        products = self.env['product.template'].search([
+            ('categ_id.name', '=', 'Vehicles'),
+            ('financing_type', '=', 'none')
+        ])
         eligible = products.filtered(lambda p: p.total_bills_residual > 0)
         return eligible
 
@@ -139,7 +146,12 @@ class FinancingAgreementWizardLine(models.TransientModel):
     _description = 'Financing Agreement Wizard Line'
 
     wizard_id = fields.Many2one('financing.agreement.wizard', string='Wizard', required=True, ondelete='cascade')
-    vehicle_id = fields.Many2one('product.template', string='Vehicle', required=True)
+    vehicle_id = fields.Many2one(
+        'product.template',
+        string='Vehicle',
+        required=True,
+        domain="[('categ_id.name', '=', 'Vehicles')]"
+    )
     financed_amount = fields.Monetary(string='Amount to Finance', currency_field='currency_id', required=True)
     currency_id = fields.Many2one('res.currency', default=lambda self: self.env.company.currency_id)
     selected = fields.Boolean(string='Select', default=True)
