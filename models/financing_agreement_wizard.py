@@ -11,8 +11,7 @@ class FinancingAgreementWizard(models.TransientModel):
     interest_rate = fields.Float(string='Annual Interest Rate (%)', required=True, default=0.0)
     
     multiple_vehicles = fields.Boolean(string='Finance Multiple Vehicles', default=False)
-    vehicle_id = fields.Many2one('product.template', string='Vehicle', 
-                                 domain="[('total_bills_residual', '>', 0), ('financing_type', '=', 'none')]")
+    vehicle_id = fields.Many2one('product.template', string='Vehicle')
     financed_amount = fields.Monetary(string='Amount to Finance', currency_field='currency_id')
     currency_id = fields.Many2one('res.currency', default=lambda self: self.env.company.currency_id)
     
@@ -31,24 +30,35 @@ class FinancingAgreementWizard(models.TransientModel):
         default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False),
     )
 
+    @api.model
+    def _get_eligible_vehicles(self):
+        """Get vehicles with outstanding bills eligible for financing"""
+        products = self.env['product.template'].search([('financing_type', '=', 'none')])
+        eligible = products.filtered(lambda p: p.total_bills_residual > 0)
+        return eligible
+
     @api.onchange('vehicle_id')
     def _onchange_vehicle_id(self):
         """Set financed amount when vehicle is selected"""
         if self.vehicle_id:
             self.financed_amount = self.vehicle_id.total_bills_residual
+        # Return domain to filter eligible vehicles in the dropdown
+        eligible_vehicles = self._get_eligible_vehicles()
+        return {
+            'domain': {
+                'vehicle_id': [('id', 'in', eligible_vehicles.ids)]
+            }
+        }
     
     @api.onchange('multiple_vehicles')
     def _onchange_multiple_vehicles(self):
         """Load available vehicles with outstanding bills when multiple vehicles is enabled"""
         if self.multiple_vehicles:
             # Find all vehicles with outstanding bills that aren't already financed
-            products = self.env['product.template'].search([
-                ('total_bills_residual', '>', 0),
-                ('financing_type', '=', 'none'),
-            ])
+            eligible_vehicles = self._get_eligible_vehicles()
             
             lines = []
-            for product in products:
+            for product in eligible_vehicles:
                 lines.append((0, 0, {
                     'vehicle_id': product.id,
                     'financed_amount': product.total_bills_residual,
