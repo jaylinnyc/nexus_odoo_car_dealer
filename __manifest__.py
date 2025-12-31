@@ -58,6 +58,12 @@ Car Dealer Customizations
         'views/financing_agreement_wizard_views.xml',
     ],
 
+    'assets': {
+        'web.assets_backend': [
+            'nexus_odoo_car_dealer/static/src/views/financing_agreement_list_view.js',
+        ],
+    },
+
     # Only if you created new models and want demo data
     # 'demo': [
     #     'demo/demo_data.xml',

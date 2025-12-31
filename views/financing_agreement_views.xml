@@ -6,10 +6,7 @@
             <field name="name">financing.agreement.tree</field>
             <field name="model">financing.agreement</field>
             <field name="arch" type="xml">
-                <list string="Financing Agreements" create="false">
-                    <header>
-                        <button name="%(action_financing_agreement_wizard)d" string="New Agreement" type="action" class="btn-primary"/>
-                    </header>
+                <list string="Financing Agreements" js_class="financing_agreement_list">
                     <field name="partner_id"/>
                     <field name="agreement_date"/>
                     <field name="total_financed_amount"/>
@@ -156,10 +153,15 @@
                     Create a new financing agreement
                 </p>
                 <p>
-                    Use the "New Agreement" button to create a financing agreement for one or more vehicles.
+                    Click "New" to create a financing agreement for one or more vehicles.
                 </p>
             </field>
         </record>
+
+        <!-- Button template for list view -->
+        <template id="financing_agreement_list_buttons" name="Financing Agreement List Buttons">
+            <button type="action" name="%(action_financing_agreement_wizard)d" class="btn btn-primary" data-hotkey="c">New</button>
+        </template>
 
         <record id="action_financing_dashboard" model="ir.actions.act_window">
             <field name="name">Financing Dashboard</field>
