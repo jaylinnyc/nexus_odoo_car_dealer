@@ -16,6 +16,7 @@ class FinancingAgreement(models.Model):
     
     total_financed_amount = fields.Monetary(string='Total Principal', compute='_compute_totals', currency_field='currency_id', store=True)
     total_balance = fields.Monetary(string='Total Balance', compute='_compute_totals', currency_field='currency_id', store=True)
+    total_interest_paid = fields.Monetary(string='Total Interest Paid', compute='_compute_totals', currency_field='currency_id', store=True)
     currency_id = fields.Many2one('res.currency', default=lambda self: self.env.company.currency_id)
     
     state = fields.Selection([
@@ -32,11 +33,12 @@ class FinancingAgreement(models.Model):
                 vals['name'] = self.env['ir.sequence'].next_by_code('financing.agreement') or _('New')
         return super().create(vals_list)
 
-    @api.depends('line_ids.financed_amount', 'line_ids.current_balance')
+    @api.depends('line_ids.financed_amount', 'line_ids.current_balance', 'line_ids.accumulated_interest')
     def _compute_totals(self):
         for record in self:
             record.total_financed_amount = sum(record.line_ids.mapped('financed_amount'))
             record.total_balance = sum(record.line_ids.mapped('current_balance'))
+            record.total_interest_paid = sum(record.line_ids.mapped('accumulated_interest'))
 
     def action_activate(self):
         self.write({'state': 'active'})
@@ -98,6 +100,7 @@ class FinancingAgreementLine(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
 
     agreement_id = fields.Many2one('financing.agreement', string='Agreement', required=True, ondelete='cascade')
+    partner_id = fields.Many2one(related='agreement_id.partner_id', string='Lender', store=True)
     vehicle_id = fields.Many2one('product.template', string='Vehicle', required=True, domain=[('make', '!=', False)])
     
     currency_id = fields.Many2one(related='agreement_id.currency_id')
@@ -108,6 +111,7 @@ class FinancingAgreementLine(models.Model):
     end_date = fields.Date(string='End Date')
     
     current_balance = fields.Monetary(string='Current Balance', tracking=True)
+    accumulated_interest = fields.Monetary(string='Accumulated Interest', compute='_compute_accumulated_interest', store=True, currency_field='currency_id')
     
     state = fields.Selection([
         ('draft', 'Draft'),
@@ -123,6 +127,13 @@ class FinancingAgreementLine(models.Model):
 
     # Link to interest bills
     interest_bill_ids = fields.One2many('vehicle.financing', 'agreement_line_id', string='Interest Bills')
+
+    @api.depends('interest_bill_ids.interest_amount', 'interest_bill_ids.state')
+    def _compute_accumulated_interest(self):
+        for record in self:
+            # Sum all posted interest bills
+            posted_bills = record.interest_bill_ids.filtered(lambda b: b.state == 'posted')
+            record.accumulated_interest = sum(posted_bills.mapped('interest_amount'))
 
     @api.depends('vehicle_id')
     def _compute_name(self):

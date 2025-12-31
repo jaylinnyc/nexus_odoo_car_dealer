@@ -12,6 +12,7 @@
                     <field name="agreement_date"/>
                     <field name="total_financed_amount"/>
                     <field name="total_balance"/>
+                    <field name="total_interest_paid"/>
                     <field name="state" widget="badge" decoration-success="state == 'active'" decoration-info="state == 'draft'"/>
                 </list>
             </field>
@@ -42,6 +43,7 @@
                             <group>
                                 <field name="total_financed_amount"/>
                                 <field name="total_balance"/>
+                                <field name="total_interest_paid"/>
                             </group>
                         </group>
                         <notebook>
@@ -53,6 +55,7 @@
                                         <field name="interest_rate"/>
                                         <field name="start_date"/>
                                         <field name="current_balance" sum="Total Balance"/>
+                                        <field name="accumulated_interest" sum="Total Interest"/>
                                         <field name="state"/>
                                     </list>
                                 </field>
@@ -73,9 +76,10 @@
             <field name="name">financing.agreement.line.graph</field>
             <field name="model">financing.agreement.line</field>
             <field name="arch" type="xml">
-                <graph string="Financing Liability" type="bar">
-                    <field name="vehicle_id"/>
+                <graph string="Financing Liability" type="bar" stacked="True">
+                    <field name="partner_id" type="row"/>
                     <field name="current_balance" type="measure"/>
+                    <field name="accumulated_interest" type="measure"/>
                 </graph>
             </field>
         </record>
@@ -85,10 +89,11 @@
             <field name="model">financing.agreement.line</field>
             <field name="arch" type="xml">
                 <pivot string="Financing Analysis">
+                    <field name="partner_id" type="row"/>
                     <field name="agreement_id" type="row"/>
-                    <field name="vehicle_id" type="row"/>
                     <field name="financed_amount" type="measure"/>
                     <field name="current_balance" type="measure"/>
+                    <field name="accumulated_interest" type="measure"/>
                 </pivot>
             </field>
         </record>
