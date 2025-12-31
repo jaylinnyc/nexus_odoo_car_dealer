@@ -119,6 +119,7 @@ class VehicleFinancingTransaction(models.Model):
         ('initial', 'Initial Financing'),
         ('topup', 'Top-Up Financing'),
         ('paydown', 'Pay Down'),
+        ('reversal', 'Reversal'),
     ], string='Type', required=True, default='topup')
     amount = fields.Monetary(
         string='Amount',
@@ -149,6 +150,228 @@ class VehicleFinancingTransaction(models.Model):
         default=lambda self: self.env.company.currency_id
     )
     notes = fields.Text(string='Notes')
+    
+    # Reversal tracking
+    is_reversed = fields.Boolean(string='Reversed', default=False, readonly=True)
+    reversed_by_id = fields.Many2one(
+        'vehicle.financing.transaction',
+        string='Reversed By',
+        readonly=True,
+        help='The reversal transaction that cancelled this transaction'
+    )
+    reverses_id = fields.Many2one(
+        'vehicle.financing.transaction',
+        string='Reverses',
+        readonly=True,
+        help='The original transaction that this reversal cancels'
+    )
+
+    def action_reverse_transaction(self):
+        """Reverse a top-up or paydown transaction"""
+        self.ensure_one()
+        
+        if self.is_reversed:
+            raise UserError(_('This transaction has already been reversed.'))
+        
+        if self.transaction_type not in ('topup', 'paydown'):
+            raise UserError(_('Only Top-Up and Pay Down transactions can be reversed.'))
+        
+        if self.transaction_type == 'reversal':
+            raise UserError(_('Cannot reverse a reversal transaction.'))
+        
+        product = self.product_id
+        
+        # Get the liability account
+        liability_account = product.financing_liability_account_id
+        if not liability_account:
+            liability_account = self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False)
+        
+        if not liability_account:
+            raise UserError(_('Please configure the Floor Plan Payable account.'))
+        
+        # Get the default journal
+        journal = self.env['account.journal'].search([
+            ('type', '=', 'general'),
+            ('company_id', '=', self.env.company.id)
+        ], limit=1)
+        
+        if not journal:
+            raise UserError(_('No general journal found.'))
+        
+        # Calculate reversal amount (opposite of original)
+        reversal_amount = -self.amount
+        
+        # Calculate new balance
+        current_balance = product.financing_balance
+        new_balance = current_balance + reversal_amount
+        
+        # Prepare analytic distribution
+        analytic_dist = {str(product.analytic_account_id.id): 100.0} if product.analytic_account_id else {}
+        
+        # Determine the original cash account from the original journal entry
+        original_entry = self.journal_entry_id
+        if not original_entry:
+            raise UserError(_('Cannot reverse: Original journal entry not found.'))
+        
+        # Find the non-liability account from original entry (bank/cash account)
+        other_account = None
+        for line in original_entry.line_ids:
+            if line.account_id != liability_account:
+                other_account = line.account_id
+                break
+        
+        if not other_account:
+            raise UserError(_('Cannot determine the bank/cash account from the original transaction.'))
+        
+        # Create reversal journal entry
+        reversal_ref = _('REVERSAL: %s') % original_entry.ref
+        
+        if self.transaction_type == 'topup':
+            # Original topup: Debit Cash, Credit Liability
+            # Reversal: Debit Liability, Credit Cash
+            journal_entry_vals = {
+                'move_type': 'entry',
+                'journal_id': journal.id,
+                'date': fields.Date.today(),
+                'ref': reversal_ref,
+                'narration': _('Reversal of %s transaction\nVehicle: %s\nOriginal Entry: %s') % (
+                    self.transaction_type,
+                    product.name,
+                    original_entry.name
+                ),
+                'line_ids': [
+                    (0, 0, {
+                        'name': _('Reversal - %s') % product.name,
+                        'account_id': liability_account.id,
+                        'partner_id': product.financing_partner_id.id,
+                        'debit': abs(self.amount),
+                        'credit': 0,
+                        'analytic_distribution': analytic_dist or False,
+                    }),
+                    (0, 0, {
+                        'name': _('Reversal - %s') % product.name,
+                        'account_id': other_account.id,
+                        'partner_id': product.financing_partner_id.id,
+                        'debit': 0,
+                        'credit': abs(self.amount),
+                        'analytic_distribution': analytic_dist or False,
+                    }),
+                ],
+            }
+        else:  # paydown
+            # Original paydown: Debit Liability, Credit Cash
+            # Reversal: Debit Cash, Credit Liability
+            journal_entry_vals = {
+                'move_type': 'entry',
+                'journal_id': journal.id,
+                'date': fields.Date.today(),
+                'ref': reversal_ref,
+                'narration': _('Reversal of %s transaction\nVehicle: %s\nOriginal Entry: %s') % (
+                    self.transaction_type,
+                    product.name,
+                    original_entry.name
+                ),
+                'line_ids': [
+                    (0, 0, {
+                        'name': _('Reversal - %s') % product.name,
+                        'account_id': other_account.id,
+                        'partner_id': product.financing_partner_id.id,
+                        'debit': abs(self.amount),
+                        'credit': 0,
+                        'analytic_distribution': analytic_dist or False,
+                    }),
+                    (0, 0, {
+                        'name': _('Reversal - %s') % product.name,
+                        'account_id': liability_account.id,
+                        'partner_id': product.financing_partner_id.id,
+                        'debit': 0,
+                        'credit': abs(self.amount),
+                        'analytic_distribution': analytic_dist or False,
+                    }),
+                ],
+            }
+        
+        reversal_entry = self.env['account.move'].create(journal_entry_vals)
+        reversal_entry.action_post()
+        
+        # Create reversal transaction record
+        reversal_transaction = self.create({
+            'product_id': product.id,
+            'transaction_date': fields.Date.today(),
+            'transaction_type': 'reversal',
+            'amount': reversal_amount,
+            'balance_after': new_balance,
+            'journal_entry_id': reversal_entry.id,
+            'notes': _('Reversal of %s transaction (Original: %s)') % (
+                dict(self._fields['transaction_type'].selection).get(self.transaction_type),
+                original_entry.name
+            ),
+            'reverses_id': self.id,
+        })
+        
+        # Mark original as reversed
+        self.write({
+            'is_reversed': True,
+            'reversed_by_id': reversal_transaction.id,
+        })
+        
+        # Update product financing balance
+        product.write({'financing_balance': new_balance})
+        
+        # Update agreement line if exists
+        agreement_line = self.env['financing.agreement.line'].search([
+            ('vehicle_id', '=', product.id),
+            ('state', 'in', ['active', 'paid_off'])
+        ], limit=1)
+        if agreement_line:
+            agreement_line.write({'current_balance': new_balance})
+            # If reversing a paydown that had closed the line, reopen it
+            if agreement_line.state == 'paid_off' and new_balance > 0:
+                agreement_line.write({'state': 'active', 'end_date': False})
+                product.write({'financing_status': 'active'})
+                # Also reopen the agreement if it was closed
+                if agreement_line.agreement_id.state == 'closed':
+                    agreement_line.agreement_id.write({'state': 'active'})
+                    agreement_line.agreement_id.message_post(
+                        body=_('Agreement reopened due to transaction reversal on %s.') % product.name,
+                        subject=_('Agreement Reopened')
+                    )
+        
+        # Post message to product
+        product.message_post(
+            body=Markup('<b>Transaction Reversed</b><br/>'
+                   'Original Transaction: %s<br/>'
+                   'Original Amount: %s<br/>'
+                   'Reversal Entry: %s<br/>'
+                   'New Balance: %s') % (
+                dict(self._fields['transaction_type'].selection).get(self.transaction_type),
+                self.amount,
+                reversal_entry.name,
+                new_balance
+            ),
+            subject=_('Transaction Reversal')
+        )
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'account.move',
+            'res_id': reversal_entry.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    def action_view_journal_entry(self):
+        """Open the related journal entry"""
+        self.ensure_one()
+        if not self.journal_entry_id:
+            raise UserError(_('No journal entry linked to this transaction.'))
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'account.move',
+            'res_id': self.journal_entry_id.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
 
 
 class ProductTemplate(models.Model):

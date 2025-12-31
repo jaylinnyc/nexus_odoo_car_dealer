@@ -37,6 +37,91 @@
             </field>
         </record>
 
+        <!-- Vehicle Financing Transaction List View -->
+        <record id="view_vehicle_financing_transaction_tree" model="ir.ui.view">
+            <field name="name">vehicle.financing.transaction.list</field>
+            <field name="model">vehicle.financing.transaction</field>
+            <field name="arch" type="xml">
+                <list string="Financing Transactions" create="false" edit="false">
+                    <field name="transaction_date"/>
+                    <field name="vehicle_id"/>
+                    <field name="transaction_type" widget="badge" 
+                           decoration-success="transaction_type == 'paydown'" 
+                           decoration-info="transaction_type == 'topup'"
+                           decoration-warning="transaction_type == 'reversal'"
+                           decoration-muted="transaction_type == 'initial'"/>
+                    <field name="amount" widget="monetary"/>
+                    <field name="balance_after" widget="monetary"/>
+                    <field name="is_reversed" invisible="1"/>
+                    <field name="journal_entry_id"/>
+                    <field name="notes"/>
+                    <button name="action_reverse_transaction" type="object" 
+                            string="Reverse" icon="fa-undo" class="oe_link text-danger"
+                            invisible="is_reversed or transaction_type not in ('topup', 'paydown')"
+                            confirm="Are you sure you want to reverse this transaction? This will create a reversing journal entry and restore the previous balance."/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Vehicle Financing Transaction Form View -->
+        <record id="view_vehicle_financing_transaction_form" model="ir.ui.view">
+            <field name="name">vehicle.financing.transaction.form</field>
+            <field name="model">vehicle.financing.transaction</field>
+            <field name="arch" type="xml">
+                <form string="Financing Transaction" create="false">
+                    <header>
+                        <button name="action_reverse_transaction" type="object" 
+                                string="Reverse Transaction" class="btn-danger"
+                                invisible="is_reversed or transaction_type not in ('topup', 'paydown')"
+                                confirm="Are you sure you want to reverse this transaction? This will create a reversing journal entry and restore the previous balance."/>
+                    </header>
+                    <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button class="oe_stat_button" type="object" name="action_view_journal_entry"
+                                    icon="fa-book" invisible="not journal_entry_id">
+                                <span class="o_stat_text">Journal Entry</span>
+                            </button>
+                        </div>
+                        <widget name="web_ribbon" title="Reversed" bg_color="text-bg-danger" invisible="not is_reversed"/>
+                        <group>
+                            <group string="Transaction Details">
+                                <field name="product_id" readonly="1"/>
+                                <field name="transaction_date" readonly="1"/>
+                                <field name="transaction_type" readonly="1"/>
+                                <field name="amount" readonly="1"/>
+                                <field name="balance_after" readonly="1"/>
+                            </group>
+                            <group string="References">
+                                <field name="journal_entry_id" readonly="1"/>
+                                <field name="vendor_bill_id" readonly="1"/>
+                                <field name="is_reversed" readonly="1"/>
+                                <field name="reversed_by_id" readonly="1" invisible="not reversed_by_id"/>
+                                <field name="reverses_id" readonly="1" invisible="not reverses_id"/>
+                            </group>
+                        </group>
+                        <group>
+                            <field name="notes" readonly="1"/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Action for Financing Transactions -->
+        <record id="action_financing_transactions" model="ir.actions.act_window">
+            <field name="name">Financing Transactions</field>
+            <field name="res_model">vehicle.financing.transaction</field>
+            <field name="view_mode">list,form</field>
+            <field name="view_ids" eval="[(5, 0, 0),
+                (0, 0, {'view_mode': 'list', 'view_id': ref('view_vehicle_financing_transaction_tree')}),
+                (0, 0, {'view_mode': 'form', 'view_id': ref('view_vehicle_financing_transaction_form')})]"/>
+            <field name="help" type="html">
+              <p class="o_view_nocontent_smiling_face">
+                No financing transactions yet
+              </p>
+            </field>
+        </record>
+
         <!-- Product Template Form View - Add Financing Agreement Stat Button -->
         <record id="view_product_template_financing_form" model="ir.ui.view">
             <field name="name">product.template.financing.form</field>
@@ -116,5 +201,11 @@
                   parent="menu_financing_root"
                   action="action_financing_bills"
                   sequence="20"/>
+
+        <menuitem id="menu_financing_transactions"
+                  name="Transactions"
+                  parent="menu_financing_root"
+                  action="action_financing_transactions"
+                  sequence="15"/>
     </data>
 </odoo>
