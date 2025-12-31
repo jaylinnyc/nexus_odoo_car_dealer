@@ -6,7 +6,10 @@
             <field name="name">financing.agreement.tree</field>
             <field name="model">financing.agreement</field>
             <field name="arch" type="xml">
-                <list string="Financing Agreements">
+                <list string="Financing Agreements" create="false">
+                    <header>
+                        <button name="%(action_financing_agreement_wizard)d" string="New Agreement" type="action" class="btn-primary"/>
+                    </header>
                     <field name="partner_id"/>
                     <field name="agreement_date"/>
                     <field name="total_financed_amount"/>
@@ -148,7 +151,14 @@
             <field name="name">Financing Agreements</field>
             <field name="res_model">financing.agreement</field>
             <field name="view_mode">list,form</field>
-            <field name="context">{'form_view_ref': 'nexus_odoo_car_dealer.action_financing_agreement_wizard'}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Create a new financing agreement
+                </p>
+                <p>
+                    Use the "New Agreement" button to create a financing agreement for one or more vehicles.
+                </p>
+            </field>
         </record>
 
         <record id="action_financing_dashboard" model="ir.actions.act_window">

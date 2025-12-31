@@ -51,7 +51,9 @@
             <field name="name">New Financing Agreement</field>
             <field name="res_model">financing.agreement.wizard</field>
             <field name="view_mode">form</field>
+            <field name="view_id" ref="view_financing_agreement_wizard_form"/>
             <field name="target">new</field>
+            <field name="binding_model_id" ref="model_financing_agreement"/>
         </record>
     </data>
 </odoo>
