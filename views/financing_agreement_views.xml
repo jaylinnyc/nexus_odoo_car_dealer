@@ -24,6 +24,10 @@
             <field name="model">financing.agreement</field>
             <field name="arch" type="xml">
                 <form string="Financing Agreement" create="false">
+                    <!-- DEBUG: This is view_financing_agreement_form for model financing.agreement -->
+                    <div class="alert alert-info" role="alert">
+                        <strong>DEBUG:</strong> financing.agreement FORM (view_financing_agreement_form)
+                    </div>
                     <header>
                         <button name="action_activate" string="Activate" type="object" class="oe_highlight" invisible="state != 'draft'"/>
                         <button name="action_close" string="Close Agreement" type="object" class="btn-secondary" invisible="state != 'active'"/>
@@ -137,6 +141,10 @@
             <field name="model">financing.agreement.line</field>
             <field name="arch" type="xml">
                 <form string="Vehicle Financing Details">
+                    <!-- DEBUG: This is view_financing_agreement_line_form for model financing.agreement.line -->
+                    <div class="alert alert-warning" role="alert">
+                        <strong>DEBUG:</strong> financing.agreement.LINE FORM (view_financing_agreement_line_form)
+                    </div>
                     <header>
                         <button name="action_topup" string="Top-Up" type="object" class="oe_highlight" invisible="state != 'active'"/>
                         <button name="action_paydown" string="Pay Down" type="object" invisible="state != 'active'"/>
