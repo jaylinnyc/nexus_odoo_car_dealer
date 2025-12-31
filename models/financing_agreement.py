@@ -6,8 +6,10 @@ class FinancingAgreement(models.Model):
     _description = 'Financing Agreement'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'agreement_date desc, id desc'
+    _rec_name = 'display_name'
 
-    name = fields.Char(string='Reference', required=True, copy=False, readonly=True, default=lambda self: _('New'))
+    name = fields.Char(string='Reference', copy=False, readonly=True, default=lambda self: _('New'))
+    display_name = fields.Char(string='Display Name', compute='_compute_display_name', store=True)
     partner_id = fields.Many2one('res.partner', string='Lender', required=True, tracking=True)
     agreement_date = fields.Date(string='Agreement Date', default=fields.Date.today, required=True, tracking=True)
     active = fields.Boolean(default=True)
@@ -40,6 +42,15 @@ class FinancingAgreement(models.Model):
             if vals.get('name', _('New')) == _('New'):
                 vals['name'] = self.env['ir.sequence'].next_by_code('financing.agreement') or _('New')
         return super().create(vals_list)
+
+    @api.depends('partner_id', 'agreement_date')
+    def _compute_display_name(self):
+        for record in self:
+            if record.partner_id:
+                date_str = record.agreement_date.strftime('%Y-%m-%d') if record.agreement_date else ''
+                record.display_name = f"{record.partner_id.name} - {date_str}"
+            else:
+                record.display_name = record.name or _('New Agreement')
 
     @api.depends('line_ids.financed_amount', 'line_ids.current_balance', 'line_ids.accumulated_interest')
     def _compute_totals(self):
@@ -143,14 +154,41 @@ class FinancingAgreement(models.Model):
         }
 
     def action_activate(self):
+        """Activate the agreement and all its lines"""
         self.write({'state': 'active'})
         for line in self.line_ids:
             line.state = 'active'
 
     def action_close(self):
-        self.write({'state': 'closed'})
-        for line in self.line_ids:
-            line.state = 'paid_off'
+        """Close the agreement - only allowed when all lines are paid off or have zero balance"""
+        for record in self:
+            # Check if there are any active lines with balance
+            active_lines_with_balance = record.line_ids.filtered(
+                lambda l: l.state == 'active' and l.current_balance > 0
+            )
+            
+            if active_lines_with_balance:
+                vehicle_names = ', '.join(active_lines_with_balance.mapped('vehicle_id.name'))
+                total_balance = sum(active_lines_with_balance.mapped('current_balance'))
+                raise UserError(_(
+                    'Cannot close agreement: The following vehicles still have outstanding balances:\n\n'
+                    '%s\n\n'
+                    'Total Outstanding: %s\n\n'
+                    'Please use "Pay Down" on each vehicle to clear the balance before closing the agreement, '
+                    'or use "Full Payoff" when the vehicle is sold.'
+                ) % (vehicle_names, total_balance))
+            
+            # Mark any remaining active lines (with zero balance) as paid off
+            for line in record.line_ids.filtered(lambda l: l.state == 'active'):
+                line.write({
+                    'state': 'paid_off',
+                    'end_date': fields.Date.today(),
+                })
+                # Update the vehicle financing status
+                if line.vehicle_id:
+                    line.vehicle_id.write({'financing_status': 'paid_off'})
+            
+            record.write({'state': 'closed'})
 
     @api.model
     def migrate_old_data(self):
