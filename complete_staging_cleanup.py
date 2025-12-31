@@ -1,7 +1,7 @@
 # Complete Staging Data Cleanup - Copy-paste into Odoo.sh shell
 # This script deletes all transactional data from staging database
 # Created: December 30, 2025
-# Updated: December 31, 2025
+# Updated: January 1, 2026 - Added financing.agreement cleanup
 # Usage: Copy entire script and paste into Odoo.sh shell
 
 print("\n" + "="*80)
@@ -107,8 +107,26 @@ try:
     else:
         print("  ✓ No account moves to delete")
     
-    # STEP 10: Delete Financing Records
-    print("[10/13] Deleting financing records...")
+    # STEP 10: Delete Financing Agreements (NEW - must come before vehicle_financing due to FK)
+    print("[10/15] Deleting financing agreements...")
+    env.cr.execute("SELECT COUNT(*) FROM financing_agreement_line")
+    agreement_line_count = env.cr.fetchone()[0]
+    if agreement_line_count > 0:
+        env.cr.execute("DELETE FROM financing_agreement_line")
+        print(f"  ✓ Deleted {env.cr.rowcount} financing agreement line(s)")
+    else:
+        print("  ✓ No financing agreement lines to delete")
+    
+    env.cr.execute("SELECT COUNT(*) FROM financing_agreement")
+    agreement_count = env.cr.fetchone()[0]
+    if agreement_count > 0:
+        env.cr.execute("DELETE FROM financing_agreement")
+        print(f"  ✓ Deleted {env.cr.rowcount} financing agreement(s)")
+    else:
+        print("  ✓ No financing agreements to delete")
+    
+    # STEP 11: Delete Financing Records
+    print("[11/15] Deleting financing records...")
     env.cr.execute("SELECT COUNT(*) FROM vehicle_financing")
     financing_count = env.cr.fetchone()[0]
     if financing_count > 0:
@@ -117,8 +135,8 @@ try:
     else:
         print("  ✓ No financing records to delete")
     
-    # STEP 11: Delete Financing Transactions
-    print("[11/13] Deleting financing transactions...")
+    # STEP 12: Delete Financing Transactions
+    print("[12/15] Deleting financing transactions...")
     env.cr.execute("SELECT COUNT(*) FROM vehicle_financing_transaction")
     trans_count = env.cr.fetchone()[0]
     if trans_count > 0:
@@ -127,8 +145,8 @@ try:
     else:
         print("  ✓ No financing transactions to delete")
     
-    # STEP 12: Delete Stock Valuation Adjustment Lines
-    print("[12/13] Deleting stock valuation adjustment lines...")
+    # STEP 13: Delete Stock Valuation Adjustment Lines
+    print("[13/15] Deleting stock valuation adjustment lines...")
     env.cr.execute("SELECT COUNT(*) FROM stock_valuation_adjustment_lines")
     val_adj_count = env.cr.fetchone()[0]
     if val_adj_count > 0:
@@ -145,8 +163,25 @@ try:
         env.cr.execute("DELETE FROM stock_landed_cost")
         print(f"  ✓ Deleted {env.cr.rowcount} landed cost(s)")
     
-    # STEP 13: Delete Vehicle Products
-    print("[13/13] Deleting vehicle products...")
+    # STEP 14: Reset Vehicle Financing Fields on Products
+    print("[14/15] Resetting vehicle financing fields...")
+    env.cr.execute("""
+        UPDATE product_template SET 
+            financing_type = 'none',
+            financing_amount = 0,
+            financing_rate = 0,
+            financing_balance = 0,
+            financing_status = 'active',
+            financing_start_date = NULL,
+            financing_partner_id = NULL,
+            financing_journal_entry_id = NULL,
+            last_interest_bill_date = NULL
+        WHERE financing_type IS NOT NULL AND financing_type != 'none'
+    """)
+    print(f"  ✓ Reset financing fields on {env.cr.rowcount} product(s)")
+    
+    # STEP 15: Delete Vehicle Products
+    print("[15/15] Deleting vehicle products...")
     vehicles = env['product.product'].search([('product_tmpl_id.categ_id.name', '=', 'Vehicles')])
     vehicle_count = len(vehicles)
     
@@ -183,8 +218,14 @@ try:
     print(f"  • Stock moves: {env.cr.fetchone()[0]}")
     env.cr.execute("SELECT COUNT(*) FROM stock_quant")
     print(f"  • Stock quants: {env.cr.fetchone()[0]}")
+    env.cr.execute("SELECT COUNT(*) FROM financing_agreement")
+    print(f"  • Financing agreements: {env.cr.fetchone()[0]}")
+    env.cr.execute("SELECT COUNT(*) FROM financing_agreement_line")
+    print(f"  • Financing agreement lines: {env.cr.fetchone()[0]}")
     env.cr.execute("SELECT COUNT(*) FROM vehicle_financing")
     print(f"  • Financing records: {env.cr.fetchone()[0]}")
+    env.cr.execute("SELECT COUNT(*) FROM vehicle_financing_transaction")
+    print(f"  • Financing transactions: {env.cr.fetchone()[0]}")
     env.cr.execute("SELECT COUNT(*) FROM account_partial_reconcile")
     print(f"  • Partial reconciliations: {env.cr.fetchone()[0]}")
     env.cr.execute("SELECT COUNT(*) FROM product_product pp JOIN product_template pt ON pp.product_tmpl_id = pt.id WHERE pt.categ_id IN (SELECT id FROM product_category WHERE name = 'Vehicles')")
