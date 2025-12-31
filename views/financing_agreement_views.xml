@@ -69,6 +69,7 @@
                                 <field name="total_financed_amount" widget="monetary"/>
                                 <field name="total_balance" widget="monetary"/>
                                 <field name="total_interest_paid" widget="monetary"/>
+                                <field name="next_interest_bill_date" invisible="state != 'active'"/>
                             </group>
                         </group>
                         <notebook>

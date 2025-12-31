@@ -1901,6 +1901,8 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
         if agreement_line:
             agreement_line.write({'current_balance': new_balance})
             if new_balance <= 0:
+                # Generate final prorated interest bill before marking as paid off
+                self._generate_final_interest_bill(product, agreement_line)
                 agreement_line.action_mark_paid_off()
         
         # Add message to product
@@ -1940,3 +1942,150 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
             'target': 'current',
         }
 
+    def _generate_final_interest_bill(self, product, agreement_line):
+        """Generate a final prorated interest bill from the last bill date to the payoff date.
+        
+        This ensures interest is properly charged up to the exact day of payoff.
+        Uses time-weighted daily interest calculation.
+        """
+        if not agreement_line or agreement_line.interest_rate <= 0:
+            return
+        
+        # Determine the period start (day after last interest bill)
+        if product.last_interest_bill_date:
+            period_start = product.last_interest_bill_date + relativedelta(days=1)
+        elif agreement_line.start_date:
+            period_start = agreement_line.start_date
+        else:
+            return  # Can't determine period start
+        
+        # Period end is the payoff date
+        period_end = self.paydown_date
+        
+        # If period_start is after period_end, nothing to bill
+        if period_start > period_end:
+            return
+        
+        # Calculate days in the billing period
+        days_in_period = (period_end - period_start).days + 1
+        
+        if days_in_period <= 0:
+            return
+        
+        # Use the current balance (before payoff) as the principal for interest calculation
+        # This is the balance that was accruing interest
+        principal = product.financing_balance
+        annual_rate = agreement_line.interest_rate
+        
+        if principal <= 0 or annual_rate <= 0:
+            return
+        
+        # Time-weighted daily interest calculation
+        # Daily Interest = (Balance × Annual Rate / 100) / 365
+        daily_interest = (principal * annual_rate / 100) / 365
+        total_interest = daily_interest * days_in_period
+        
+        if total_interest <= 0.01:  # Skip if interest is negligible
+            return
+        
+        # Build interest description
+        interest_description = _('Final Interest Charge - Payoff\nVehicle: %s\nPeriod: %s to %s (%d days)\n\nCalculation:\n  $%s @ %.2f%% for %d days = $%.2f') % (
+            product.name,
+            period_start.strftime('%m/%d/%Y'),
+            period_end.strftime('%m/%d/%Y'),
+            days_in_period,
+            '{:,.2f}'.format(principal),
+            annual_rate,
+            days_in_period,
+            total_interest
+        )
+        
+        # Get expense account
+        expense_account = agreement_line.expense_account_id or product.financing_expense_account_id
+        if not expense_account:
+            expense_account = self.env.ref('nexus_odoo_car_dealer.account_interest_expense', raise_if_not_found=False)
+        if not expense_account:
+            expense_account = self.env['account.account'].search([
+                ('account_type', '=', 'expense'),
+                '|', ('name', 'ilike', 'interest'), ('code', 'ilike', 'interest')
+            ], limit=1)
+        if not expense_account:
+            return  # Can't create without expense account
+        
+        # Get interest payable account
+        interest_payable_account = self.env.ref('nexus_odoo_car_dealer.account_interest_payable', raise_if_not_found=False)
+        if not interest_payable_account:
+            interest_payable_account = self.env['account.account'].search([
+                ('account_type', '=', 'liability_payable'),
+                '|', ('name', 'ilike', 'interest'), ('code', 'ilike', 'interest')
+            ], limit=1)
+        if not interest_payable_account:
+            interest_payable_account = expense_account  # Fallback
+        
+        # Get journal
+        journal = self.env['account.journal'].search([
+            ('type', '=', 'general'),
+            ('company_id', '=', self.env.company.id)
+        ], limit=1)
+        
+        if not journal:
+            return
+        
+        # Prepare analytic distribution
+        analytic_dist = {str(product.analytic_account_id.id): 100.0} if product.analytic_account_id else {}
+        
+        # Create journal entry
+        journal_entry_vals = {
+            'move_type': 'entry',
+            'journal_id': journal.id,
+            'date': period_end,
+            'ref': _('Final Interest - %s - Payoff') % product.name,
+            'line_ids': [
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': expense_account.id,
+                    'partner_id': agreement_line.partner_id.id,
+                    'debit': total_interest,
+                    'credit': 0,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': interest_payable_account.id,
+                    'partner_id': agreement_line.partner_id.id,
+                    'debit': 0,
+                    'credit': total_interest,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+            ],
+        }
+        
+        bill = self.env['account.move'].create(journal_entry_vals)
+        bill.action_post()
+        
+        # Create financing record linked to agreement line
+        self.env['vehicle.financing'].create({
+            'product_id': product.id,
+            'bill_date': period_end,
+            'interest_amount': total_interest,
+            'bill_id': bill.id,
+            'agreement_line_id': agreement_line.id,
+        })
+        
+        # Update last bill date
+        product.write({'last_interest_bill_date': period_end})
+        
+        # Log the final interest bill
+        product.message_post(
+            body=Markup('<b>Final Interest Bill Generated (Payoff)</b><br/>'
+                   'Period: %s to %s (%d days)<br/>'
+                   'Interest Amount: $%.2f<br/>'
+                   'Journal Entry: %s') % (
+                period_start.strftime('%m/%d/%Y'),
+                period_end.strftime('%m/%d/%Y'),
+                days_in_period,
+                total_interest,
+                bill.name
+            ),
+            subject=_('Final Interest Bill')
+        )

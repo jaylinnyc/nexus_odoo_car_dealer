@@ -20,6 +20,7 @@ class FinancingAgreement(models.Model):
     total_balance = fields.Monetary(string='Total Balance', compute='_compute_totals', currency_field='currency_id', store=True)
     total_interest_paid = fields.Monetary(string='Total Interest Paid', compute='_compute_totals', currency_field='currency_id', store=True)
     currency_id = fields.Many2one('res.currency', default=lambda self: self.env.company.currency_id)
+    next_interest_bill_date = fields.Date(string='Next Interest Bill', compute='_compute_next_interest_bill_date', help='The next date when interest bills will be generated for active vehicles')
     vehicle_count = fields.Integer(string='Vehicles', compute='_compute_vehicle_count')
     bill_count = fields.Integer(string='Bills', compute='_compute_counts')
     journal_entry_count = fields.Integer(string='Journal Entries', compute='_compute_counts')
@@ -145,6 +146,24 @@ class FinancingAgreement(models.Model):
     def _compute_vehicle_count(self):
         for record in self:
             record.vehicle_count = len(record.line_ids)
+
+    def _compute_next_interest_bill_date(self):
+        """Compute the next interest bill date based on active lines"""
+        from dateutil.relativedelta import relativedelta
+        for record in self:
+            next_dates = []
+            for line in record.line_ids.filtered(lambda l: l.state == 'active'):
+                if line.vehicle_id:
+                    vehicle = line.vehicle_id
+                    if vehicle.last_interest_bill_date:
+                        next_date = vehicle.last_interest_bill_date + relativedelta(months=1)
+                    elif line.start_date:
+                        next_date = line.start_date + relativedelta(months=1)
+                    else:
+                        next_date = None
+                    if next_date:
+                        next_dates.append(next_date)
+            record.next_interest_bill_date = min(next_dates) if next_dates else False
 
     def _compute_counts(self):
         for record in self:
@@ -358,6 +377,7 @@ class FinancingAgreementLine(models.Model):
     
     current_balance = fields.Monetary(string='Current Balance', tracking=True)
     accumulated_interest = fields.Monetary(string='Accumulated Interest', compute='_compute_accumulated_interest', store=True, currency_field='currency_id')
+    next_interest_bill_date = fields.Date(string='Next Interest Bill', compute='_compute_next_interest_bill_date', help='Next date when interest will be billed')
     
     state = fields.Selection([
         ('draft', 'Draft'),
@@ -393,6 +413,21 @@ class FinancingAgreementLine(models.Model):
             # Sum all posted interest bills
             posted_bills = record.interest_bill_ids.filtered(lambda b: b.state == 'posted')
             record.accumulated_interest = sum(posted_bills.mapped('interest_amount'))
+
+    def _compute_next_interest_bill_date(self):
+        """Compute the next interest bill date for this line"""
+        from dateutil.relativedelta import relativedelta
+        for record in self:
+            if record.state != 'active' or not record.vehicle_id:
+                record.next_interest_bill_date = False
+                continue
+            vehicle = record.vehicle_id
+            if vehicle.last_interest_bill_date:
+                record.next_interest_bill_date = vehicle.last_interest_bill_date + relativedelta(months=1)
+            elif record.start_date:
+                record.next_interest_bill_date = record.start_date + relativedelta(months=1)
+            else:
+                record.next_interest_bill_date = False
 
     @api.depends('financed_amount', 'vehicle_id', 'vehicle_id.total_bills_amount')
     def _compute_overbilled_warning(self):
