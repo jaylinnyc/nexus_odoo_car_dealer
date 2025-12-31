@@ -158,11 +158,6 @@
             </field>
         </record>
 
-        <!-- Button template for list view -->
-        <template id="financing_agreement_list_buttons" name="Financing Agreement List Buttons">
-            <button type="action" name="%(action_financing_agreement_wizard)d" class="btn btn-primary" data-hotkey="c">New</button>
-        </template>
-
         <record id="action_financing_dashboard" model="ir.actions.act_window">
             <field name="name">Financing Dashboard</field>
             <field name="res_model">financing.agreement.line</field>

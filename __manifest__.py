@@ -61,6 +61,7 @@ Car Dealer Customizations
     'assets': {
         'web.assets_backend': [
             'nexus_odoo_car_dealer/static/src/views/financing_agreement_list_view.js',
+            'nexus_odoo_car_dealer/static/src/views/financing_agreement_list_view.xml',
         ],
     },
 

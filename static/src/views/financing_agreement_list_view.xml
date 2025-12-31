@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="nexus_odoo_car_dealer.financing_agreement_list_buttons" owl="1">
+        <button type="button" class="btn btn-primary o_list_button_add" data-hotkey="c" t-on-click="() => this.env.services.action.doAction('nexus_odoo_car_dealer.action_financing_agreement_wizard')">
+            New
+        </button>
+    </t>
+</templates>
