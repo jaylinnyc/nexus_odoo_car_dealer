@@ -7,3 +7,7 @@ access_vehicle_financing_topup_wizard_user,vehicle.financing.topup.wizard.user,m
 access_vehicle_financing_topup_wizard_manager,vehicle.financing.topup.wizard.manager,model_vehicle_financing_topup_wizard,base.group_system,1,1,1,1
 access_vehicle_financing_paydown_wizard_user,vehicle.financing.paydown.wizard.user,model_vehicle_financing_paydown_wizard,base.group_user,1,1,1,1
 access_vehicle_financing_paydown_wizard_manager,vehicle.financing.paydown.wizard.manager,model_vehicle_financing_paydown_wizard,base.group_system,1,1,1,1
+access_financing_agreement_user,financing.agreement.user,model_financing_agreement,base.group_user,1,1,1,1
+access_financing_agreement_manager,financing.agreement.manager,model_financing_agreement,base.group_system,1,1,1,1
+access_financing_agreement_line_user,financing.agreement.line.user,model_financing_agreement_line,base.group_user,1,1,1,1
+access_financing_agreement_line_manager,financing.agreement.line.manager,model_financing_agreement_line,base.group_system,1,1,1,1
