@@ -7,6 +7,7 @@ class FinancingAgreement(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'agreement_date desc, id desc'
 
+    name = fields.Char(string='Reference', required=True, copy=False, readonly=True, default=lambda self: _('New'))
     partner_id = fields.Many2one('res.partner', string='Lender', required=True, tracking=True)
     agreement_date = fields.Date(string='Agreement Date', default=fields.Date.today, required=True, tracking=True)
     active = fields.Boolean(default=True)
@@ -18,6 +19,13 @@ class FinancingAgreement(models.Model):
     total_interest_paid = fields.Monetary(string='Total Interest Paid', compute='_compute_totals', currency_field='currency_id', store=True)
     currency_id = fields.Many2one('res.currency', default=lambda self: self.env.company.currency_id)
     vehicle_count = fields.Integer(string='Vehicles', compute='_compute_vehicle_count')
+    bill_count = fields.Integer(string='Bills', compute='_compute_counts')
+    journal_entry_count = fields.Integer(string='Journal Entries', compute='_compute_counts')
+    
+    # Related records for the detail view
+    transaction_ids = fields.One2many('vehicle.financing.transaction', compute='_compute_related_records')
+    interest_bill_ids = fields.One2many('vehicle.financing', compute='_compute_related_records')
+    related_bill_ids = fields.Many2many('account.move', compute='_compute_related_records')
     
     state = fields.Selection([
         ('draft', 'Draft'),
@@ -25,6 +33,13 @@ class FinancingAgreement(models.Model):
         ('closed', 'Closed'),
         ('cancelled', 'Cancelled')
     ], string='Status', default='draft', tracking=True)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if vals.get('name', _('New')) == _('New'):
+                vals['name'] = self.env['ir.sequence'].next_by_code('financing.agreement') or _('New')
+        return super().create(vals_list)
 
     @api.depends('line_ids.financed_amount', 'line_ids.current_balance', 'line_ids.accumulated_interest')
     def _compute_totals(self):
@@ -37,6 +52,40 @@ class FinancingAgreement(models.Model):
         for record in self:
             record.vehicle_count = len(record.line_ids)
 
+    def _compute_counts(self):
+        for record in self:
+            # Count interest bills
+            record.bill_count = self.env['vehicle.financing'].search_count([
+                ('agreement_line_id', 'in', record.line_ids.ids)
+            ])
+            # Count journal entries from transactions
+            transactions = self.env['vehicle.financing.transaction'].search([
+                ('product_id', 'in', record.line_ids.mapped('vehicle_id').ids)
+            ])
+            record.journal_entry_count = len(transactions.mapped('journal_entry_id'))
+
+    def _compute_related_records(self):
+        for record in self:
+            # Get all vehicle IDs from agreement lines
+            vehicle_ids = record.line_ids.mapped('vehicle_id').ids
+            
+            # Get transactions for all vehicles in this agreement
+            record.transaction_ids = self.env['vehicle.financing.transaction'].search([
+                ('product_id', 'in', vehicle_ids)
+            ])
+            
+            # Get interest bills for all lines
+            record.interest_bill_ids = self.env['vehicle.financing'].search([
+                ('agreement_line_id', 'in', record.line_ids.ids)
+            ])
+            
+            # Get related vendor bills for all vehicles
+            bills = self.env['account.move']
+            for line in record.line_ids:
+                if line.vehicle_id and line.vehicle_id.vendor_bill_ids:
+                    bills |= line.vehicle_id.vendor_bill_ids
+            record.related_bill_ids = bills
+
     def action_view_vehicles(self):
         self.ensure_one()
         vehicles = self.line_ids.mapped('vehicle_id')
@@ -46,6 +95,50 @@ class FinancingAgreement(models.Model):
             'res_model': 'product.template',
             'view_mode': 'list,form',
             'domain': [('id', 'in', vehicles.ids)],
+            'context': {'create': False},
+        }
+
+    def action_view_all_bills(self):
+        """View all vendor bills related to vehicles in this agreement"""
+        self.ensure_one()
+        bills = self.env['account.move']
+        for line in self.line_ids:
+            if line.vehicle_id and line.vehicle_id.vendor_bill_ids:
+                bills |= line.vehicle_id.vendor_bill_ids
+        # Also include interest bills
+        interest_bills = self.env['vehicle.financing'].search([
+            ('agreement_line_id', 'in', self.line_ids.ids)
+        ]).mapped('bill_id')
+        bills |= interest_bills
+        
+        return {
+            'name': _('Related Bills'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'account.move',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', bills.ids)],
+            'context': {'create': False},
+        }
+
+    def action_view_journal_entries(self):
+        """View all journal entries related to this agreement"""
+        self.ensure_one()
+        vehicle_ids = self.line_ids.mapped('vehicle_id').ids
+        transactions = self.env['vehicle.financing.transaction'].search([
+            ('product_id', 'in', vehicle_ids)
+        ])
+        journal_entries = transactions.mapped('journal_entry_id')
+        
+        # Also include opening entries
+        opening_entries = self.line_ids.mapped('journal_entry_id')
+        journal_entries |= opening_entries
+        
+        return {
+            'name': _('Journal Entries'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'account.move',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', journal_entries.ids)],
             'context': {'create': False},
         }
 
@@ -136,6 +229,11 @@ class FinancingAgreementLine(models.Model):
 
     # Link to interest bills
     interest_bill_ids = fields.One2many('vehicle.financing', 'agreement_line_id', string='Interest Bills')
+    
+    # Computed fields for stat buttons
+    interest_bill_count = fields.Integer(string='Interest Bills', compute='_compute_counts')
+    transaction_count = fields.Integer(string='Transactions', compute='_compute_counts')
+    transaction_ids = fields.One2many('vehicle.financing.transaction', compute='_compute_transactions')
 
     @api.depends('interest_bill_ids.interest_amount', 'interest_bill_ids.state')
     def _compute_accumulated_interest(self):
@@ -144,7 +242,98 @@ class FinancingAgreementLine(models.Model):
             posted_bills = record.interest_bill_ids.filtered(lambda b: b.state == 'posted')
             record.accumulated_interest = sum(posted_bills.mapped('interest_amount'))
 
+    def _compute_counts(self):
+        for record in self:
+            record.interest_bill_count = len(record.interest_bill_ids)
+            record.transaction_count = self.env['vehicle.financing.transaction'].search_count([
+                ('product_id', '=', record.vehicle_id.id)
+            ]) if record.vehicle_id else 0
+
+    def _compute_transactions(self):
+        for record in self:
+            if record.vehicle_id:
+                record.transaction_ids = self.env['vehicle.financing.transaction'].search([
+                    ('product_id', '=', record.vehicle_id.id)
+                ])
+            else:
+                record.transaction_ids = self.env['vehicle.financing.transaction']
+
     @api.depends('vehicle_id')
     def _compute_name(self):
         for record in self:
             record.name = f"{record.agreement_id.name} - {record.vehicle_id.name}"
+
+    def action_view_vehicle_details(self):
+        """Open the vehicle financing line detail form"""
+        self.ensure_one()
+        return {
+            'name': _('Vehicle Financing Details'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'financing.agreement.line',
+            'view_mode': 'form',
+            'res_id': self.id,
+            'target': 'current',
+        }
+
+    def action_view_vehicle(self):
+        """Open the vehicle product form"""
+        self.ensure_one()
+        return {
+            'name': _('Vehicle'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'product.template',
+            'view_mode': 'form',
+            'res_id': self.vehicle_id.id,
+            'target': 'current',
+        }
+
+    def action_view_interest_bills(self):
+        """View interest bills for this financing line"""
+        self.ensure_one()
+        return {
+            'name': _('Interest Bills'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'vehicle.financing',
+            'view_mode': 'list,form',
+            'domain': [('agreement_line_id', '=', self.id)],
+            'context': {'create': False},
+        }
+
+    def action_view_transactions(self):
+        """View transactions for this financing line"""
+        self.ensure_one()
+        return {
+            'name': _('Financing Transactions'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'vehicle.financing.transaction',
+            'view_mode': 'list,form',
+            'domain': [('product_id', '=', self.vehicle_id.id)],
+            'context': {'create': False},
+        }
+
+    def action_topup(self):
+        """Open the top-up wizard for this vehicle"""
+        self.ensure_one()
+        if not self.vehicle_id:
+            raise UserError(_('No vehicle linked to this financing line.'))
+        return self.vehicle_id.action_topup_floor_plan_financing()
+
+    def action_paydown(self):
+        """Open the paydown wizard for this vehicle"""
+        self.ensure_one()
+        if not self.vehicle_id:
+            raise UserError(_('No vehicle linked to this financing line.'))
+        return self.vehicle_id.action_paydown_floor_plan_financing()
+
+    def action_mark_paid_off(self):
+        """Mark this financing line as paid off"""
+        self.ensure_one()
+        if self.current_balance > 0:
+            raise UserError(_('Cannot mark as paid off: There is still an outstanding balance of %s.') % self.current_balance)
+        self.write({
+            'state': 'paid_off',
+            'end_date': fields.Date.today(),
+        })
+        # Update the vehicle financing status
+        if self.vehicle_id:
+            self.vehicle_id.write({'financing_status': 'paid_off'})

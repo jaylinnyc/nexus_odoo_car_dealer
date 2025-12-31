@@ -36,12 +36,28 @@ class FinancingAgreementWizard(models.TransientModel):
 
     @api.model
     def _get_eligible_vehicles(self):
-        """Get vehicles with outstanding bills eligible for financing"""
+        """Get vehicles with outstanding bills eligible for financing.
+        
+        Excludes:
+        - Vehicles that already have financing set up (financing_type != 'none')
+        - Vehicles with no outstanding bill balance (total_bills_residual == 0, i.e., paid off)
+        - Vehicles that are already in an active financing agreement line
+        """
+        # Get vehicles in the Vehicles category without existing financing
         products = self.env['product.template'].search([
             ('categ_id.name', '=', 'Vehicles'),
             ('financing_type', '=', 'none')
         ])
-        eligible = products.filtered(lambda p: p.total_bills_residual > 0)
+        
+        # Find vehicles already in active financing agreement lines
+        already_financed_vehicles = self.env['financing.agreement.line'].search([
+            ('state', 'in', ['draft', 'active'])
+        ]).mapped('vehicle_id').ids
+        
+        # Filter: must have outstanding bills AND not already in a financing agreement
+        eligible = products.filtered(
+            lambda p: p.total_bills_residual > 0 and p.id not in already_financed_vehicles
+        )
         return eligible
 
     @api.onchange('vehicle_id')

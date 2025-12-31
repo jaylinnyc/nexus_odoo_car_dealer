@@ -19,6 +19,12 @@ class VehicleFinancing(models.Model):
         required=True,
         ondelete='cascade'
     )
+    # Alias for product_id to be consistent with financing.agreement.line naming
+    vehicle_id = fields.Many2one(
+        related='product_id',
+        string='Vehicle (Alias)',
+        store=True
+    )
     bill_date = fields.Date(string='Bill Date', required=True)
     interest_amount = fields.Monetary(
         string='Interest Amount',
@@ -97,6 +103,12 @@ class VehicleFinancingTransaction(models.Model):
         required=True,
         ondelete='cascade',
         index=True
+    )
+    # Alias for product_id to be consistent with financing.agreement.line naming
+    vehicle_id = fields.Many2one(
+        related='product_id',
+        string='Vehicle (Alias)',
+        store=True
     )
     transaction_date = fields.Date(
         string='Transaction Date',

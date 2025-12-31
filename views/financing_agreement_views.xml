@@ -7,12 +7,13 @@
             <field name="model">financing.agreement</field>
             <field name="arch" type="xml">
                 <list string="Financing Agreements" js_class="financing_agreement_list" create="false">
+                    <field name="name"/>
                     <field name="partner_id"/>
                     <field name="agreement_date"/>
-                    <field name="total_financed_amount"/>
-                    <field name="total_balance"/>
-                    <field name="total_interest_paid"/>
-                    <field name="state" widget="badge" decoration-success="state == 'active'" decoration-info="state == 'draft'"/>
+                    <field name="total_financed_amount" widget="monetary"/>
+                    <field name="total_balance" widget="monetary"/>
+                    <field name="total_interest_paid" widget="monetary"/>
+                    <field name="state" widget="badge" decoration-success="state == 'active'" decoration-info="state == 'draft'" decoration-muted="state == 'closed'"/>
                 </list>
             </field>
         </record>
@@ -22,11 +23,11 @@
             <field name="name">financing.agreement.form</field>
             <field name="model">financing.agreement</field>
             <field name="arch" type="xml">
-                <form string="Financing Agreement" create="false" edit="false">
+                <form string="Financing Agreement" create="false">
                     <header>
                         <button name="action_activate" string="Activate" type="object" class="oe_highlight" invisible="state != 'draft'"/>
-                        <button name="action_close" string="Close" type="object" invisible="state != 'active'"/>
-                        <field name="state" widget="statusbar"/>
+                        <button name="action_close" string="Close Agreement" type="object" class="btn-secondary" invisible="state != 'active'"/>
+                        <field name="state" widget="statusbar" statusbar_visible="draft,active,closed"/>
                     </header>
                     <sheet>
                         <div class="oe_button_box" name="button_box">
@@ -36,72 +37,181 @@
                                     icon="fa-car">
                                 <field name="vehicle_count" widget="statinfo" string="Vehicles"/>
                             </button>
+                            <button name="action_view_all_bills"
+                                    type="object"
+                                    class="oe_stat_button"
+                                    icon="fa-file-text-o">
+                                <field name="bill_count" widget="statinfo" string="Bills"/>
+                            </button>
+                            <button name="action_view_journal_entries"
+                                    type="object"
+                                    class="oe_stat_button"
+                                    icon="fa-book">
+                                <field name="journal_entry_count" widget="statinfo" string="Journal Entries"/>
+                            </button>
                         </div>
                         <div class="oe_title">
+                            <label for="name"/>
                             <h1>
-                                <field name="partner_id" placeholder="Lender"/>
+                                <field name="name" readonly="1"/>
                             </h1>
                         </div>
                         <group>
                             <group string="Agreement Details">
-                                <field name="agreement_date"/>
+                                <field name="partner_id" readonly="state != 'draft'"/>
+                                <field name="agreement_date" readonly="state != 'draft'"/>
                                 <field name="state" invisible="1"/>
                             </group>
-                            <group string="Summary">
-                                <field name="total_financed_amount"/>
-                                <field name="total_balance"/>
-                                <field name="total_interest_paid"/>
+                            <group string="Financial Summary">
+                                <field name="total_financed_amount" widget="monetary"/>
+                                <field name="total_balance" widget="monetary"/>
+                                <field name="total_interest_paid" widget="monetary"/>
                             </group>
                         </group>
                         <notebook>
-                            <page string="Vehicles" name="vehicles">
-                                <field name="line_ids">
-                                    <list create="false" edit="false" delete="false">
-                                        <field name="vehicle_id"/>
-                                        <field name="financed_amount" sum="Total Principal"/>
-                                        <field name="interest_rate"/>
-                                        <field name="start_date"/>
-                                        <field name="current_balance" sum="Total Balance"/>
-                                        <field name="accumulated_interest" sum="Total Interest"/>
-                                        <field name="state"/>
+                            <page string="Financed Vehicles" name="vehicles">
+                                <field name="line_ids" readonly="state == 'closed'">
+                                    <list create="false" delete="false" editable="bottom">
+                                        <field name="vehicle_id" readonly="1"/>
+                                        <field name="financed_amount" sum="Total Principal" readonly="1"/>
+                                        <field name="interest_rate" readonly="state == 'active'"/>
+                                        <field name="start_date" readonly="1"/>
+                                        <field name="current_balance" sum="Total Balance" readonly="1"/>
+                                        <field name="accumulated_interest" sum="Total Interest" readonly="1"/>
+                                        <field name="state" widget="badge" decoration-success="state == 'active'" decoration-info="state == 'draft'" decoration-muted="state == 'paid_off'"/>
+                                        <button name="action_view_vehicle_details" type="object" string="Details" icon="fa-info-circle" class="oe_link"/>
                                     </list>
-                                    <form string="Vehicle Financing">
-                                        <sheet>
-                                            <group>
-                                                <group string="Vehicle">
-                                                    <field name="vehicle_id"/>
-                                                    <field name="start_date"/>
-                                                    <field name="end_date"/>
-                                                    <field name="state"/>
-                                                </group>
-                                                <group string="Financing Terms">
-                                                    <field name="financed_amount"/>
-                                                    <field name="interest_rate"/>
-                                                    <field name="current_balance"/>
-                                                    <field name="accumulated_interest"/>
-                                                </group>
-                                            </group>
-                                            <group>
-                                                <group string="Accounting">
-                                                    <field name="expense_account_id"/>
-                                                    <field name="liability_account_id"/>
-                                                    <field name="journal_entry_id"/>
-                                                </group>
-                                            </group>
-                                            <notebook>
-                                                <page string="Interest Bills" name="interest_bills">
-                                                    <field name="interest_bill_ids">
-                                                        <list>
-                                                            <field name="bill_date"/>
-                                                            <field name="interest_amount"/>
-                                                            <field name="bill_id"/>
-                                                            <field name="state"/>
-                                                        </list>
-                                                    </field>
-                                                </page>
-                                            </notebook>
-                                        </sheet>
-                                    </form>
+                                </field>
+                            </page>
+                            <page string="Transaction History" name="transactions">
+                                <field name="transaction_ids" readonly="1">
+                                    <list create="false" edit="false" delete="false">
+                                        <field name="transaction_date"/>
+                                        <field name="vehicle_id"/>
+                                        <field name="transaction_type" widget="badge"/>
+                                        <field name="amount" widget="monetary"/>
+                                        <field name="balance_after" widget="monetary"/>
+                                        <field name="journal_entry_id"/>
+                                        <field name="notes"/>
+                                    </list>
+                                </field>
+                            </page>
+                            <page string="Interest Bills" name="interest_bills">
+                                <field name="interest_bill_ids" readonly="1">
+                                    <list create="false" edit="false" delete="false">
+                                        <field name="bill_date"/>
+                                        <field name="vehicle_id"/>
+                                        <field name="interest_amount" sum="Total Interest"/>
+                                        <field name="bill_id"/>
+                                        <field name="state" widget="badge" decoration-success="state == 'posted'" decoration-info="state == 'draft'"/>
+                                    </list>
+                                </field>
+                            </page>
+                            <page string="Related Bills" name="related_bills">
+                                <field name="related_bill_ids" readonly="1">
+                                    <list create="false" edit="false" delete="false">
+                                        <field name="name"/>
+                                        <field name="partner_id"/>
+                                        <field name="invoice_date"/>
+                                        <field name="amount_total" string="Total Amount" sum="Total"/>
+                                        <field name="amount_residual" string="Amount Due" sum="Total Due"/>
+                                        <field name="payment_state" widget="badge" decoration-success="payment_state == 'paid'" decoration-warning="payment_state == 'partial'" decoration-danger="payment_state == 'not_paid'"/>
+                                        <field name="state" widget="badge"/>
+                                    </list>
+                                </field>
+                            </page>
+                        </notebook>
+                    </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids"/>
+                        <field name="activity_ids"/>
+                        <field name="message_ids"/>
+                    </div>
+                </form>
+            </field>
+        </record>
+
+        <!-- Financing Agreement Line Form View (Vehicle Details) -->
+        <record id="view_financing_agreement_line_form" model="ir.ui.view">
+            <field name="name">financing.agreement.line.form</field>
+            <field name="model">financing.agreement.line</field>
+            <field name="arch" type="xml">
+                <form string="Vehicle Financing Details">
+                    <header>
+                        <button name="action_topup" string="Top-Up" type="object" class="oe_highlight" invisible="state != 'active'"/>
+                        <button name="action_paydown" string="Pay Down" type="object" invisible="state != 'active'"/>
+                        <button name="action_mark_paid_off" string="Mark as Paid Off" type="object" class="btn-secondary" invisible="state != 'active' or current_balance > 0"/>
+                        <field name="state" widget="statusbar" statusbar_visible="draft,active,paid_off"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button name="action_view_vehicle"
+                                    type="object"
+                                    class="oe_stat_button"
+                                    icon="fa-car">
+                                <span class="o_stat_text">View Vehicle</span>
+                            </button>
+                            <button name="action_view_interest_bills"
+                                    type="object"
+                                    class="oe_stat_button"
+                                    icon="fa-file-text">
+                                <field name="interest_bill_count" widget="statinfo" string="Interest Bills"/>
+                            </button>
+                            <button name="action_view_transactions"
+                                    type="object"
+                                    class="oe_stat_button"
+                                    icon="fa-exchange">
+                                <field name="transaction_count" widget="statinfo" string="Transactions"/>
+                            </button>
+                        </div>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="vehicle_id" readonly="1"/>
+                            </h1>
+                        </div>
+                        <group>
+                            <group string="Agreement Info">
+                                <field name="agreement_id" readonly="1"/>
+                                <field name="partner_id" readonly="1"/>
+                                <field name="start_date" readonly="1"/>
+                                <field name="end_date"/>
+                            </group>
+                            <group string="Financing Terms">
+                                <field name="financed_amount" readonly="1"/>
+                                <field name="interest_rate"/>
+                                <field name="current_balance" readonly="1"/>
+                                <field name="accumulated_interest" readonly="1"/>
+                            </group>
+                        </group>
+                        <group>
+                            <group string="Accounting">
+                                <field name="expense_account_id"/>
+                                <field name="liability_account_id"/>
+                                <field name="journal_entry_id" readonly="1"/>
+                            </group>
+                        </group>
+                        <notebook>
+                            <page string="Transaction History" name="transactions">
+                                <field name="transaction_ids" readonly="1">
+                                    <list create="false" edit="false" delete="false">
+                                        <field name="transaction_date"/>
+                                        <field name="transaction_type" widget="badge"/>
+                                        <field name="amount" widget="monetary"/>
+                                        <field name="balance_after" widget="monetary"/>
+                                        <field name="journal_entry_id"/>
+                                        <field name="vendor_bill_id"/>
+                                        <field name="notes"/>
+                                    </list>
+                                </field>
+                            </page>
+                            <page string="Interest Bills" name="interest_bills">
+                                <field name="interest_bill_ids" readonly="1">
+                                    <list create="false" edit="false" delete="false">
+                                        <field name="bill_date"/>
+                                        <field name="interest_amount" sum="Total Interest"/>
+                                        <field name="bill_id"/>
+                                        <field name="state" widget="badge" decoration-success="state == 'posted'" decoration-info="state == 'draft'"/>
+                                    </list>
                                 </field>
                             </page>
                         </notebook>

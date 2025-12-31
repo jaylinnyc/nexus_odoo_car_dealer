@@ -25,6 +25,15 @@
             <field name="reconcile">False</field>
         </record>
 
+        <!-- Financing Agreement Sequence -->
+        <record id="seq_financing_agreement" model="ir.sequence">
+            <field name="name">Financing Agreement</field>
+            <field name="code">financing.agreement</field>
+            <field name="prefix">FA/%(year)s/</field>
+            <field name="padding">4</field>
+            <field name="company_id" eval="False"/>
+        </record>
+
         <!-- Set as default on product template via ir.default -->
         <function model="ir.default" name="set">
             <value>product.template</value>
