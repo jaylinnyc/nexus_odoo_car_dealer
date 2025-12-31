@@ -585,7 +585,7 @@ class FinancingAgreementLine(models.Model):
             'product_id': vehicle.id,
             'transaction_type': 'initial',
             'amount': self.financed_amount,
-            'date': self.start_date or fields.Date.today(),
+            'transaction_date': self.start_date or fields.Date.today(),
             'balance_after': self.financed_amount,
             'journal_entry_id': journal_entry.id,
             'notes': _('Initial floor plan financing via Agreement %s') % self.agreement_id.name,
