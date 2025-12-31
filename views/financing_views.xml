@@ -188,6 +188,7 @@
 
         <menuitem id="menu_financing_root"
                   name="Financing"
+                  web_icon="nexus_odoo_car_dealer,static/description/icon.svg"
                   sequence="40"/>
 
         <menuitem id="menu_financing_vehicles"
