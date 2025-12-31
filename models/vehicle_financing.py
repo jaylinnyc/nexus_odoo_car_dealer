@@ -1477,6 +1477,16 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
         
         product.write(vals)
         
+        # Update agreement line if exists and check for agreement completion
+        agreement_line = self.env['financing.agreement.line'].search([
+            ('vehicle_id', '=', product.id),
+            ('state', '=', 'active')
+        ], limit=1)
+        if agreement_line:
+            agreement_line.write({'current_balance': new_balance})
+            if new_balance <= 0:
+                agreement_line.action_mark_paid_off()
+        
         # Add message to product
         payment_info = ''
         if payment:

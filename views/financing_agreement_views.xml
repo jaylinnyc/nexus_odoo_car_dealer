@@ -25,7 +25,6 @@
                 <form string="Financing Agreement" create="false">
                     <header>
                         <button name="action_activate" string="Activate" type="object" class="oe_highlight" invisible="state != 'draft'"/>
-                        <button name="action_close" string="Close Agreement" type="object" class="btn-secondary" invisible="state != 'active'"/>
                         <field name="state" widget="statusbar" statusbar_visible="draft,active,closed"/>
                     </header>
                     <sheet>
@@ -77,6 +76,8 @@
                                         <field name="current_balance" sum="Total Balance" readonly="1"/>
                                         <field name="accumulated_interest" sum="Total Interest" readonly="1"/>
                                         <field name="state" widget="badge" decoration-success="state == 'active'" decoration-info="state == 'draft'" decoration-muted="state == 'paid_off'"/>
+                                        <button name="action_topup" type="object" string="Top-Up" icon="fa-plus-circle" class="oe_highlight" invisible="state != 'active'"/>
+                                        <button name="action_paydown" type="object" string="Pay Down" icon="fa-minus-circle" invisible="state != 'active'"/>
                                         <button name="action_view_vehicle_details" type="object" string="Details" icon="fa-info-circle" class="oe_link"/>
                                     </list>
                                 </field>

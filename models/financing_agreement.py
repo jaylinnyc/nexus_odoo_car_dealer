@@ -375,3 +375,18 @@ class FinancingAgreementLine(models.Model):
         # Update the vehicle financing status
         if self.vehicle_id:
             self.vehicle_id.write({'financing_status': 'paid_off'})
+        
+        # Check if all lines in the agreement are now paid off - auto-close agreement
+        self._check_agreement_completion()
+
+    def _check_agreement_completion(self):
+        """Check if all lines in the agreement are paid off and auto-close if so"""
+        if self.agreement_id:
+            active_lines = self.agreement_id.line_ids.filtered(lambda l: l.state == 'active')
+            if not active_lines:
+                # All lines are paid off, close the agreement
+                self.agreement_id.write({'state': 'closed'})
+                self.agreement_id.message_post(
+                    body=_('Agreement automatically closed - all vehicles have been paid off.'),
+                    subject=_('Agreement Closed')
+                )
