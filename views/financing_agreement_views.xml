@@ -265,11 +265,10 @@
             <field name="name">financing.agreement.line.graph</field>
             <field name="model">financing.agreement.line</field>
             <field name="arch" type="xml">
-                <graph string="Financing Liability" type="bar" stacked="True">
+                <graph string="Financing Liability" type="bar" stacked="True" sample="1">
                     <field name="vehicle_id" type="row"/>
                     <field name="partner_id" type="col"/>
-                    <field name="current_balance" type="measure"/>
-                    <field name="accumulated_interest" type="measure"/>
+                    <field name="current_balance" type="measure" string="Current Balance"/>
                 </graph>
             </field>
         </record>
@@ -278,12 +277,10 @@
             <field name="name">financing.agreement.line.pivot</field>
             <field name="model">financing.agreement.line</field>
             <field name="arch" type="xml">
-                <pivot string="Financing Analysis">
+                <pivot string="Financing Analysis" sample="1">
                     <field name="vehicle_id" type="row"/>
                     <field name="partner_id" type="col"/>
-                    <field name="financed_amount" type="measure"/>
-                    <field name="current_balance" type="measure"/>
-                    <field name="accumulated_interest" type="measure"/>
+                    <field name="current_balance" type="measure" string="Current Balance"/>
                 </pivot>
             </field>
         </record>
