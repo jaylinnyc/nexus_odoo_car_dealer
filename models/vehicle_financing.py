@@ -992,7 +992,7 @@ class ProductTemplate(models.Model):
         
         # Update agreement line balance if linked
         if agreement_line:
-            agreement_line.financed_amount += total_interest
+            agreement_line.current_balance += total_interest
         
         return {
             'type': 'ir.actions.act_window',
@@ -1148,7 +1148,7 @@ class ProductTemplate(models.Model):
         self.write({'financing_balance': self.financing_balance + total_interest})
         
         # Update agreement line balance (interest adds to the amount owed)
-        agreement_line.financed_amount += total_interest
+        agreement_line.current_balance += total_interest
 
     def action_view_financing(self):
         """View financing history for this vehicle."""
