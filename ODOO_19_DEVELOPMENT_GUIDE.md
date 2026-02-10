@@ -56,7 +56,7 @@ your_module/
 
 ### Step 1: Create Module Directory Structure
 
-Create a folder in your addons path (e.g., `d:\odoo\custom_addons\your_module`):
+Create a folder in your addons path (ea.g., `d:\odoo\custom_addons\your_module`):
 
 ```bash
 mkdir your_module
