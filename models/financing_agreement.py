@@ -11,6 +11,7 @@ class FinancingAgreement(models.Model):
     name = fields.Char(string='Reference', copy=False, readonly=True, default=lambda self: _('New'))
     display_name = fields.Char(string='Display Name', compute='_compute_display_name', store=True)
     partner_id = fields.Many2one('res.partner', string='Lender', required=True, tracking=True)
+    dealer_id = fields.Many2one('res.partner', string='Dealer', required=True, tracking=True)
     agreement_date = fields.Date(string='Agreement Date', default=fields.Date.today, required=True, tracking=True)
     active = fields.Boolean(default=True)
     
@@ -366,6 +367,7 @@ class FinancingAgreementLine(models.Model):
 
     agreement_id = fields.Many2one('financing.agreement', string='Agreement', required=True, ondelete='cascade')
     partner_id = fields.Many2one(related='agreement_id.partner_id', string='Lender', store=True)
+    dealer_id = fields.Many2one(related='agreement_id.dealer_id', string='Dealer', required=True, tracking=True)
     vehicle_id = fields.Many2one('product.template', string='Vehicle', required=True, domain=[('make', '!=', False)])
     
     currency_id = fields.Many2one(related='agreement_id.currency_id')

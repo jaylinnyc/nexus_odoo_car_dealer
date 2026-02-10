@@ -31,6 +31,13 @@ class ProductTemplate(models.Model):
         tracking=True,
     )
     
+    reserved_by_dealer_id = fields.Many2one(
+        'res.partner',
+        string='Reserved By Dealer',
+        help='Dealer who has reserved this vehicle',
+        tracking=True,
+    )
+    
     reservation_date = fields.Datetime(
         string='Reservation Date',
         help='Date and time when the vehicle was reserved',
@@ -63,6 +70,12 @@ class ProductTemplate(models.Model):
         string='Financing Partner',
         copy=False,
         help='Internal partner for financing (bank/lender for external reference only)'
+    )
+    financing_dealer_id = fields.Many2one(
+        'res.partner',
+        string='Financing Dealer',
+        copy=False,
+        help='Dealer responsible for the financing agreement (for internal tracking)'
     )
     financing_status = fields.Selection([
         ('active', 'Active'),
