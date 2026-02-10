@@ -11,6 +11,7 @@
                         <group>
                             <group string="Agreement Details">
                                 <field name="partner_id"/>
+                                <field name="dealer_id"/>
                                 <field name="agreement_date"/>
                                 <field name="interest_rate"/>
                             </group>
