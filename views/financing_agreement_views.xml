@@ -135,7 +135,6 @@
                                     <list create="false" edit="false" delete="false">
                                         <field name="name"/>
                                         <field name="partner_id"/>
-                                        <field name="dealer_id"/>
                                         <field name="invoice_date"/>
                                         <field name="amount_total" string="Total Amount" sum="Total"/>
                                         <field name="amount_residual" string="Amount Due" sum="Total Due"/>

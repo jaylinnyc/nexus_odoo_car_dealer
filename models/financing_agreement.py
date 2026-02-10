@@ -117,6 +117,7 @@ class FinancingAgreement(models.Model):
                     'financing_status': 'active',
                     'financing_start_date': False,
                     'financing_partner_id': False,
+                    'financing_dealer_id': False,
                     'financing_journal_entry_id': False,
                     'last_interest_bill_date': False,
                 })
@@ -333,7 +334,8 @@ class FinancingAgreement(models.Model):
         
             # Create Agreement (One per vehicle for safety/simplicity in migration)
             agreement = Agreement.create({
-                'partner_id': product.financing_partner_id.id or self.env.user.partner_id.id, # Fallback if missing
+                'partner_id': product.financing_partner_id.id or self.env.user.partner_id.id,
+                'dealer_id': product.financing_dealer_id.id or self.env.user.partner_id.id,  # Fallback if missing
                 'agreement_date': product.financing_start_date or fields.Date.today(),
                 'state': 'active' if product.financing_status == 'active' else 'closed',
             })

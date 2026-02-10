@@ -7,6 +7,7 @@ class FinancingAgreementWizard(models.TransientModel):
     _description = 'Create Financing Agreement Wizard'
 
     partner_id = fields.Many2one('res.partner', string='Lender', required=True)
+    dealer_id = fields.Many2one('res.partner', string='Dealer', required=True)
     agreement_date = fields.Date(string='Agreement Date', default=fields.Date.today, required=True)
     interest_rate = fields.Float(string='Annual Interest Rate (%)', required=True, default=0.0)
     
@@ -115,6 +116,7 @@ class FinancingAgreementWizard(models.TransientModel):
         
         # Create the agreement
         agreement = self.env['financing.agreement'].create({
+            'dealer_id': self.dealer_id.id,
             'partner_id': self.partner_id.id,
             'agreement_date': self.agreement_date,
             'state': 'draft',
@@ -140,6 +142,7 @@ class FinancingAgreementWizard(models.TransientModel):
                 'financing_amount': line.financed_amount,
                 'financing_rate': self.interest_rate,
                 'financing_partner_id': self.partner_id.id,
+                'financing_dealer_id': self.dealer_id.id,
                 'financing_start_date': self.agreement_date,
                 'financing_status': 'active',
                 'financing_balance': line.financed_amount,
