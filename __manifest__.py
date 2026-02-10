@@ -71,6 +71,6 @@ Car Dealer Customizations
 
     'installable': True,
     'application': True,         # ← set to True because this is now a real app
-    'auto_install': False,
+    'auto_install': True,
     'sequence': 100,
 }
