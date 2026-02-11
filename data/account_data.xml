@@ -1,23 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data noupdate="0">
-        <!-- Floor Plan Payable (Liability Account) -->
+
+        <record id="account_floor_plan_receivable" model="account.account">
+            <field name="code">110000</field>
+            <field name="name">Floor Plan Receivable - Dealers</field>
+            <field name="account_type">asset_receivable</field>
+            <field name="reconcile">True</field>
+        </record>
+
+        <record id="account_interest_receivable" model="account.account">
+            <field name="code">111000</field>
+            <field name="name">Interest Receivable - Dealers</field>
+            <field name="account_type">asset_receivable</field>
+            <field name="reconcile">True</field>
+        </record>
+
+        <record id="account_interest_revenue" model="account.account">
+            <field name="code">470000</field>
+            <field name="name">Interest Revenue - Vehicle Financing</field>
+            <field name="account_type">income</field>
+            <field name="reconcile">False</field>
+        </record>
+
         <record id="account_floor_plan_payable" model="account.account">
             <field name="code">220000</field>
-            <field name="name">Floor Plan Payable</field>
+            <field name="name">Floor Plan Payable - Investors</field>
             <field name="account_type">liability_payable</field>
             <field name="reconcile">True</field>
         </record>
 
-        <!-- Interest Payable Account (liability to track unpaid interest) -->
         <record id="account_interest_payable" model="account.account">
             <field name="code">221000</field>
-            <field name="name">Interest Payable - Floor Plan</field>
+            <field name="name">Interest Payable - Investors</field>
             <field name="account_type">liability_payable</field>
             <field name="reconcile">True</field>
         </record>
 
-        <!-- Interest Expense Account (for P&L recognition) -->
         <record id="account_interest_expense" model="account.account">
             <field name="code">670000</field>
             <field name="name">Interest Expense - Vehicle Financing</field>
@@ -25,7 +44,6 @@
             <field name="reconcile">False</field>
         </record>
 
-        <!-- Financing Agreement Sequence -->
         <record id="seq_financing_agreement" model="ir.sequence">
             <field name="name">Financing Agreement</field>
             <field name="code">financing.agreement</field>
@@ -34,7 +52,6 @@
             <field name="company_id" eval="False"/>
         </record>
 
-        <!-- Set as default on product template via ir.default -->
         <function model="ir.default" name="set">
             <value>product.template</value>
             <value>financing_expense_account_id</value>

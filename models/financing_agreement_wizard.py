@@ -34,6 +34,18 @@ class FinancingAgreementWizard(models.TransientModel):
         domain="[('account_type', 'in', ['liability_current', 'liability_non_current', 'liability_payable'])]",
         default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False),
     )
+    receivable_account_id = fields.Many2one(
+        'account.account',
+        string='Floor Plan Receivable Account (Dealer)',
+        domain="[('account_type', 'in', ['asset_receivable', 'asset_current'])]",
+        default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_floor_plan_receivable', raise_if_not_found=False),
+    )
+    interest_receivable_account_id = fields.Many2one(
+        'account.account',
+        string='Interest Receivable Account (Dealer)',
+        domain="[('account_type', 'in', ['asset_receivable', 'asset_current'])]",
+        default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_interest_receivable', raise_if_not_found=False),
+    )
 
     @api.model
     def _get_eligible_vehicles(self):
@@ -134,6 +146,8 @@ class FinancingAgreementWizard(models.TransientModel):
                 'state': 'draft',
                 'expense_account_id': self.expense_account_id.id,
                 'liability_account_id': self.liability_account_id.id,
+                'receivable_account_id': self.receivable_account_id.id,
+                'interest_receivable_account_id': self.interest_receivable_account_id.id,
             })
             
             # Update the vehicle's financing info
@@ -148,6 +162,8 @@ class FinancingAgreementWizard(models.TransientModel):
                 'financing_balance': line.financed_amount,
                 'financing_expense_account_id': self.expense_account_id.id,
                 'financing_liability_account_id': self.liability_account_id.id,
+                'financing_receivable_account_id': self.receivable_account_id.id,
+                'financing_interest_receivable_account_id': self.interest_receivable_account_id.id,
             })
         
         # Return action to open the created agreement

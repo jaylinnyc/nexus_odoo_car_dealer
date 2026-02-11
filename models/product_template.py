@@ -103,6 +103,22 @@ class ProductTemplate(models.Model):
         default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False),
         help='Liability account for floor plan financing. This account tracks the amount owed to the financing partner.'
     )
+    financing_receivable_account_id = fields.Many2one(
+        'account.account',
+        string='Floor Plan Receivable Account',
+        domain="[('account_type', 'in', ['asset_receivable', 'asset_current'])]",
+        copy=False,
+        default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_floor_plan_receivable', raise_if_not_found=False),
+        help='Asset account tracking the principal owed by the dealer.'
+    )
+    financing_interest_receivable_account_id = fields.Many2one(
+        'account.account',
+        string='Interest Receivable Account',
+        domain="[('account_type', 'in', ['asset_receivable', 'asset_current'])]",
+        copy=False,
+        default=lambda self: self.env.ref('nexus_odoo_car_dealer.account_interest_receivable', raise_if_not_found=False),
+        help='Asset account tracking unpaid interest owed by the dealer.'
+    )
     financing_balance = fields.Monetary(
         string='Floor Plan Balance',
         currency_field='currency_id',

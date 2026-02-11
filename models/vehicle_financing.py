@@ -167,68 +167,57 @@ class VehicleFinancingTransaction(models.Model):
     )
 
     def action_reverse_transaction(self):
-        """Reverse a top-up or paydown transaction"""
-        self.ensure_one()
-        
-        if self.is_reversed:
-            raise UserError(_('This transaction has already been reversed.'))
-        
-        if self.transaction_type not in ('topup', 'paydown'):
-            raise UserError(_('Only Top-Up and Pay Down transactions can be reversed.'))
-        
-        if self.transaction_type == 'reversal':
-            raise UserError(_('Cannot reverse a reversal transaction.'))
-        
-        product = self.product_id
-        
-        # Get the liability account
-        liability_account = product.financing_liability_account_id
-        if not liability_account:
-            liability_account = self.env.ref('nexus_odoo_car_dealer.account_floor_plan_payable', raise_if_not_found=False)
-        
-        if not liability_account:
-            raise UserError(_('Please configure the Floor Plan Payable account.'))
-        
-        # Get the default journal
-        journal = self.env['account.journal'].search([
-            ('type', '=', 'general'),
-            ('company_id', '=', self.env.company.id)
-        ], limit=1)
-        
-        if not journal:
-            raise UserError(_('No general journal found.'))
-        
-        # Calculate reversal amount (opposite of original)
-        reversal_amount = -self.amount
-        
-        # Calculate new balance
-        current_balance = product.financing_balance
-        new_balance = current_balance + reversal_amount
-        
-        # Prepare analytic distribution
-        analytic_dist = {str(product.analytic_account_id.id): 100.0} if product.analytic_account_id else {}
-        
-        # Determine the original cash account from the original journal entry
-        original_entry = self.journal_entry_id
-        if not original_entry:
-            raise UserError(_('Cannot reverse: Original journal entry not found.'))
-        
-        # Find the non-liability account from original entry (bank/cash account)
-        other_account = None
-        for line in original_entry.line_ids:
-            if line.account_id != liability_account:
-                other_account = line.account_id
-                break
-        
-        if not other_account:
-            raise UserError(_('Cannot determine the bank/cash account from the original transaction.'))
-        
-        # Create reversal journal entry
-        reversal_ref = _('REVERSAL: %s') % original_entry.ref
-        
-        if self.transaction_type == 'topup':
-            # Original topup: Debit Cash, Credit Liability
-            # Reversal: Debit Liability, Credit Cash
+            """Reverse a top-up or paydown transaction"""
+            self.ensure_one()
+            
+            if self.is_reversed:
+                raise UserError(_('This transaction has already been reversed.'))
+            
+            if self.transaction_type not in ('topup', 'paydown'):
+                raise UserError(_('Only Top-Up and Pay Down transactions can be reversed.'))
+            
+            if self.transaction_type == 'reversal':
+                raise UserError(_('Cannot reverse a reversal transaction.'))
+            
+            product = self.product_id
+            
+            # Determine the original journal entry
+            original_entry = self.journal_entry_id
+            if not original_entry:
+                raise UserError(_('Cannot reverse: Original journal entry not found.'))
+
+            # Get the default journal
+            journal = self.env['account.journal'].search([
+                ('type', '=', 'general'),
+                ('company_id', '=', self.env.company.id)
+            ], limit=1)
+            
+            if not journal:
+                raise UserError(_('No general journal found.'))
+            
+            # Calculate reversal amount (opposite of original)
+            reversal_amount = -self.amount
+            
+            # Calculate new balance
+            current_balance = product.financing_balance
+            new_balance = current_balance + reversal_amount
+            
+            # ---------------------------------------------------------
+            # MAGIC REVERSAL LOGIC: Perfectly mirrors the original entry
+            # ---------------------------------------------------------
+            reversal_ref = _('REVERSAL: %s') % original_entry.ref
+            
+            line_items = []
+            for line in original_entry.line_ids:
+                line_items.append((0, 0, {
+                    'name': _('Reversal - %s') % line.name,
+                    'account_id': line.account_id.id,
+                    'partner_id': line.partner_id.id,
+                    'debit': line.credit,  # Swap Credit to Debit
+                    'credit': line.debit,  # Swap Debit to Credit
+                    'analytic_distribution': line.analytic_distribution or False,
+                }))
+                
             journal_entry_vals = {
                 'move_type': 'entry',
                 'journal_id': journal.id,
@@ -239,126 +228,78 @@ class VehicleFinancingTransaction(models.Model):
                     product.name,
                     original_entry.name
                 ),
-                'line_ids': [
-                    (0, 0, {
-                        'name': _('Reversal - %s') % product.name,
-                        'account_id': liability_account.id,
-                        'partner_id': product.financing_partner_id.id,
-                        'debit': abs(self.amount),
-                        'credit': 0,
-                        'analytic_distribution': analytic_dist or False,
-                    }),
-                    (0, 0, {
-                        'name': _('Reversal - %s') % product.name,
-                        'account_id': other_account.id,
-                        'partner_id': product.financing_partner_id.id,
-                        'debit': 0,
-                        'credit': abs(self.amount),
-                        'analytic_distribution': analytic_dist or False,
-                    }),
-                ],
+                'line_ids': line_items,
             }
-        else:  # paydown
-            # Original paydown: Debit Liability, Credit Cash
-            # Reversal: Debit Cash, Credit Liability
-            journal_entry_vals = {
-                'move_type': 'entry',
-                'journal_id': journal.id,
-                'date': fields.Date.today(),
-                'ref': reversal_ref,
-                'narration': _('Reversal of %s transaction\nVehicle: %s\nOriginal Entry: %s') % (
-                    self.transaction_type,
-                    product.name,
+            
+            reversal_entry = self.env['account.move'].create(journal_entry_vals)
+            reversal_entry.action_post()
+            
+            # Create reversal transaction record
+            reversal_transaction = self.create({
+                'product_id': product.id,
+                'transaction_date': fields.Date.today(),
+                'transaction_type': 'reversal',
+                'amount': reversal_amount,
+                'balance_after': new_balance,
+                'journal_entry_id': reversal_entry.id,
+                'notes': _('Reversal of %s transaction (Original: %s)') % (
+                    dict(self._fields['transaction_type'].selection).get(self.transaction_type),
                     original_entry.name
                 ),
-                'line_ids': [
-                    (0, 0, {
-                        'name': _('Reversal - %s') % product.name,
-                        'account_id': other_account.id,
-                        'partner_id': product.financing_partner_id.id,
-                        'debit': abs(self.amount),
-                        'credit': 0,
-                        'analytic_distribution': analytic_dist or False,
-                    }),
-                    (0, 0, {
-                        'name': _('Reversal - %s') % product.name,
-                        'account_id': liability_account.id,
-                        'partner_id': product.financing_partner_id.id,
-                        'debit': 0,
-                        'credit': abs(self.amount),
-                        'analytic_distribution': analytic_dist or False,
-                    }),
-                ],
+                'reverses_id': self.id,
+            })
+            
+            # Mark original as reversed
+            self.write({
+                'is_reversed': True,
+                'reversed_by_id': reversal_transaction.id,
+            })
+            
+            # Update product financing balance
+            product.write({'financing_balance': new_balance})
+            
+            # Update agreement line if exists
+            agreement_line = self.env['financing.agreement.line'].search([
+                ('vehicle_id', '=', product.id),
+                ('state', 'in', ['active', 'paid_off'])
+            ], limit=1)
+            
+            if agreement_line:
+                agreement_line.write({'current_balance': new_balance})
+                # If reversing a paydown that had closed the line, reopen it
+                if agreement_line.state == 'paid_off' and new_balance > 0:
+                    agreement_line.write({'state': 'active', 'end_date': False})
+                    product.write({'financing_status': 'active'})
+                    # Also reopen the agreement if it was closed
+                    if agreement_line.agreement_id.state == 'closed':
+                        agreement_line.agreement_id.write({'state': 'active'})
+                        agreement_line.agreement_id.message_post(
+                            body=_('Agreement reopened due to transaction reversal on %s.') % product.name,
+                            subject=_('Agreement Reopened')
+                        )
+            
+            # Post message to product
+            product.message_post(
+                body=Markup('<b>Transaction Reversed</b><br/>'
+                    'Original Transaction: %s<br/>'
+                    'Original Amount: %s<br/>'
+                    'Reversal Entry: %s<br/>'
+                    'New Balance: %s') % (
+                    dict(self._fields['transaction_type'].selection).get(self.transaction_type),
+                    self.amount,
+                    reversal_entry.name,
+                    new_balance
+                ),
+                subject=_('Transaction Reversal')
+            )
+            
+            return {
+                'type': 'ir.actions.act_window',
+                'res_model': 'account.move',
+                'res_id': reversal_entry.id,
+                'view_mode': 'form',
+                'target': 'current',
             }
-        
-        reversal_entry = self.env['account.move'].create(journal_entry_vals)
-        reversal_entry.action_post()
-        
-        # Create reversal transaction record
-        reversal_transaction = self.create({
-            'product_id': product.id,
-            'transaction_date': fields.Date.today(),
-            'transaction_type': 'reversal',
-            'amount': reversal_amount,
-            'balance_after': new_balance,
-            'journal_entry_id': reversal_entry.id,
-            'notes': _('Reversal of %s transaction (Original: %s)') % (
-                dict(self._fields['transaction_type'].selection).get(self.transaction_type),
-                original_entry.name
-            ),
-            'reverses_id': self.id,
-        })
-        
-        # Mark original as reversed
-        self.write({
-            'is_reversed': True,
-            'reversed_by_id': reversal_transaction.id,
-        })
-        
-        # Update product financing balance
-        product.write({'financing_balance': new_balance})
-        
-        # Update agreement line if exists
-        agreement_line = self.env['financing.agreement.line'].search([
-            ('vehicle_id', '=', product.id),
-            ('state', 'in', ['active', 'paid_off'])
-        ], limit=1)
-        if agreement_line:
-            agreement_line.write({'current_balance': new_balance})
-            # If reversing a paydown that had closed the line, reopen it
-            if agreement_line.state == 'paid_off' and new_balance > 0:
-                agreement_line.write({'state': 'active', 'end_date': False})
-                product.write({'financing_status': 'active'})
-                # Also reopen the agreement if it was closed
-                if agreement_line.agreement_id.state == 'closed':
-                    agreement_line.agreement_id.write({'state': 'active'})
-                    agreement_line.agreement_id.message_post(
-                        body=_('Agreement reopened due to transaction reversal on %s.') % product.name,
-                        subject=_('Agreement Reopened')
-                    )
-        
-        # Post message to product
-        product.message_post(
-            body=Markup('<b>Transaction Reversed</b><br/>'
-                   'Original Transaction: %s<br/>'
-                   'Original Amount: %s<br/>'
-                   'Reversal Entry: %s<br/>'
-                   'New Balance: %s') % (
-                dict(self._fields['transaction_type'].selection).get(self.transaction_type),
-                self.amount,
-                reversal_entry.name,
-                new_balance
-            ),
-            subject=_('Transaction Reversal')
-        )
-        
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'account.move',
-            'res_id': reversal_entry.id,
-            'view_mode': 'form',
-            'target': 'current',
-        }
 
     def action_view_journal_entry(self):
         """Open the related journal entry"""
@@ -553,6 +494,25 @@ class ProductTemplate(models.Model):
             'analytic_distribution': analytic_dist or False,
         }))
         
+        # DEBIT: Dealer Principal Receivable (The Dealer owes you for the car)
+        line_items.append((0, 0, {
+            'name': _('Floor plan principal - %s') % self.name,
+            'account_id': self.env.ref('nexus_odoo_car_dealer.account_floor_plan_receivable').id, # Create this account
+            'partner_id': self.financing_dealer_id.id, # <-- THE DEALER
+            'debit': self.financing_amount,
+            'credit': 0,
+            'analytic_distribution': analytic_dist or False,
+        }))
+        # CREDIT: Inventory / Floor Plan Clearing (Removes asset from the books, replaced by Receivable)
+        clearing_account = self.env['account.account'].search([('name', 'ilike', 'Inventory')], limit=1)
+        line_items.append((0, 0, {
+            'name': _('Floor plan clearing - %s') % self.name,
+            'account_id': clearing_account.id, 
+            'partner_id': self.financing_dealer_id.id,
+            'debit': 0,
+            'credit': self.financing_amount,
+            'analytic_distribution': analytic_dist or False,
+        }))
         # Create journal entry
         financing_ref = _('Floor Plan Financing - %s') % self.name
         
@@ -943,7 +903,25 @@ class ProductTemplate(models.Model):
             'date': bill_date,
             'ref': _('Interest - %s - %s') % (self.name, bill_date.strftime('%B %Y')),
             'line_ids': [
-                # Debit: Interest Expense (P&L recognition)
+                # 1. DEBIT: Dealer Receivable (The Dealer owes you this interest)
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': self.env.ref('nexus_odoo_car_dealer.account_interest_receivable').id, # Create this account
+                    'partner_id': agreement_line.dealer_id.id, # <-- THE DEALER
+                    'debit': total_interest,
+                    'credit': 0,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+                # 2. CREDIT: Interest Revenue (Recognize the pass-through income)
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': self.env.ref('nexus_odoo_car_dealer.account_interest_revenue').id,
+                    'partner_id': agreement_line.dealer_id.id,
+                    'debit': 0,
+                    'credit': total_interest,
+                    'analytic_distribution': analytic_dist or False,
+                }),                
+                # 3. DEBIT: Interest Expense (Recognize the pass-through cost)
                 (0, 0, {
                     'name': interest_description,
                     'account_id': self.env.ref('nexus_odoo_car_dealer.account_interest_expense').id,
@@ -952,7 +930,7 @@ class ProductTemplate(models.Model):
                     'credit': 0,
                     'analytic_distribution': analytic_dist or False,
                 }),
-                # Credit: Interest Payable (liability owed to financing partner)
+                # 4. CREDIT: Investor Payable (You owe the Investor this interest)
                 (0, 0, {
                     'name': interest_description,
                     'account_id': interest_payable_account.id,
@@ -1109,6 +1087,24 @@ class ProductTemplate(models.Model):
             'date': bill_date,
             'ref': _('Interest - %s - %s') % (self.name, bill_date.strftime('%B %Y')),
             'line_ids': [
+                # 1. DEBIT: Dealer Receivable (Dealer owes interest)
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': self.env.ref('nexus_odoo_car_dealer.account_interest_receivable').id,
+                    'partner_id': agreement_line.dealer_id.id,
+                    'debit': total_interest,
+                    'credit': 0,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+                # 2. CREDIT: Interest Revenue (Pass-through income)
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': self.env.ref('nexus_odoo_car_dealer.account_interest_revenue').id,
+                    'partner_id': agreement_line.dealer_id.id,
+                    'debit': 0,
+                    'credit': total_interest,
+                    'analytic_distribution': analytic_dist or False,
+                }),
                 (0, 0, {
                     'name': interest_description,
                     'account_id': expense_account.id,
@@ -1396,6 +1392,26 @@ class VehicleFinancingTopupWizard(models.TransientModel):
             'analytic_distribution': analytic_dist or False,
         }))
         
+        # DEBIT: Dealer Principal Receivable (Increase what dealer owes you)
+        line_items.append((0, 0, {
+            'name': _('Floor plan top-up principal - %s') % product.name,
+            'account_id': self.env.ref('nexus_odoo_car_dealer.account_floor_plan_receivable').id,
+            'partner_id': product.financing_dealer_id.id,
+            'debit': self.topup_amount,
+            'credit': 0,
+            'analytic_distribution': analytic_dist or False,
+        }))
+        # CREDIT: Clearing/Inventory Account
+        clearing_account = self.env['account.account'].search([('name', 'ilike', 'Inventory')], limit=1)
+        line_items.append((0, 0, {
+            'name': _('Floor plan top-up clearing - %s') % product.name,
+            'account_id': clearing_account.id,
+            'partner_id': product.financing_dealer_id.id,
+            'debit': 0,
+            'credit': self.topup_amount,
+            'analytic_distribution': analytic_dist or False,
+        }))
+        
         # Create journal entry for top-up
         topup_ref = _('Floor Plan Top-Up - %s') % product.name
         
@@ -1611,7 +1627,23 @@ class VehicleFinancingTopupWizard(models.TransientModel):
             'date': original_bill_date,  # Use same date as original bill
             'ref': _('Supplemental Interest - %s - %s') % (product.name, original_bill_date.strftime('%B %Y')),
             'line_ids': [
-                # Debit: Interest Expense (P&L recognition)
+                # 1. DEBIT: Dealer Receivable 
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': self.env.ref('nexus_odoo_car_dealer.account_interest_receivable').id,
+                    'partner_id': product.financing_dealer_id.id, # The Dealer
+                    'debit': supplemental_interest, 
+                    'credit': 0,
+                }),
+                # 2. CREDIT: Interest Revenue 
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': self.env.ref('nexus_odoo_car_dealer.account_interest_revenue').id,
+                    'partner_id':product.financing_dealer_id.id,
+                    'debit': 0,
+                    'credit': supplemental_interest,
+                }),
+               # 3. DEBIT: Interest Expense
                 (0, 0, {
                     'name': interest_description,
                     'account_id': self.env.ref('nexus_odoo_car_dealer.account_interest_expense').id,
@@ -1620,7 +1652,7 @@ class VehicleFinancingTopupWizard(models.TransientModel):
                     'credit': 0,
                     'analytic_distribution': analytic_dist or False,
                 }),
-                # Credit: Interest Payable (liability owed to financing partner)
+               # 4. CREDIT: Investor Payable
                 (0, 0, {
                     'name': interest_description,
                     'account_id': interest_payable_account.id,
@@ -1787,6 +1819,17 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
         if not liability_account:
             raise UserError(_('Please configure the Floor Plan Payable account.'))
         
+        # Get the Receivable account for the Dealer
+        receivable_account = self.env.ref('nexus_odoo_car_dealer.account_floor_plan_receivable', raise_if_not_found=False)
+        if not receivable_account:
+            receivable_account = self.env['account.account'].search([
+                ('account_type', 'in', ['asset_receivable', 'asset_current']),
+                '|', ('name', 'ilike', 'floor plan'), ('name', 'ilike', 'receivable')
+            ], limit=1)
+            
+        if not receivable_account:
+            raise UserError(_('Please configure a Floor Plan Receivable account for the dealers.'))
+        
         # Get the default journal
         journal = self.env['account.journal'].search([
             ('type', '=', 'general'),
@@ -1825,7 +1868,25 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
                 '\n\n' + self.notes if self.notes else ''
             ),
             'line_ids': [
-                # Debit: Floor Plan Payable (reduces liability)
+                # Debit: Cash/Bank (Money received from the Dealer)
+                (0, 0, {
+                    'name': _('Paydown received from Dealer - %s') % product.name,
+                    'account_id': bank_account.id,
+                    'partner_id': product.financing_dealer_id.id, # <-- THE DEALER
+                    'debit': self.paydown_amount,
+                    'credit': 0,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+                # Credit: Floor Plan Receivable (Clears the Dealer's debt to you)
+                (0, 0, {
+                    'name': _('Floor plan paydown - %s') % product.name,
+                    'account_id': receivable_account.id,
+                    'partner_id': product.financing_dealer_id.id, # <-- THE DEALER
+                    'debit': 0,
+                    'credit': self.paydown_amount,
+                    'analytic_distribution': analytic_dist or False,
+                }),
+               # Debit: Floor Plan Payable (Clears your debt to the Investor)
                 (0, 0, {
                     'name': _('Floor plan paydown - %s') % product.name,
                     'account_id': liability_account.id,
@@ -1834,7 +1895,7 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
                     'credit': 0,
                     'analytic_distribution': analytic_dist or False,
                 }),
-                # Credit: Cash/Bank from selected journal
+                # Credit: Cash/Bank (Money paid out to the Investor)
                 (0, 0, {
                     'name': _('Floor plan paydown - %s') % product.name,
                     'account_id': bank_account.id,
@@ -2047,6 +2108,23 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
             'date': period_end,
             'ref': _('Final Interest - %s - Payoff') % product.name,
             'line_ids': [
+                # 1. DEBIT: Dealer Receivable 
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': self.env.ref('nexus_odoo_car_dealer.account_interest_receivable').id,
+                    'partner_id': product.financing_dealer_id.id, # The Dealer
+                    'debit': total_interest, # (Use supplemental_interest for the supplemental function)
+                    'credit': 0,
+                }),
+                # 2. CREDIT: Interest Revenue 
+                (0, 0, {
+                    'name': interest_description,
+                    'account_id': self.env.ref('nexus_odoo_car_dealer.account_interest_revenue').id,
+                    'partner_id': product.financing_dealer_id.id,
+                    'debit': 0,
+                    'credit': total_interest,
+                }),
+                # 3. DEBIT: Interest Expense
                 (0, 0, {
                     'name': interest_description,
                     'account_id': expense_account.id,
@@ -2055,6 +2133,7 @@ class VehicleFinancingPaydownWizard(models.TransientModel):
                     'credit': 0,
                     'analytic_distribution': analytic_dist or False,
                 }),
+                # 4. CREDIT: Investor Payable
                 (0, 0, {
                     'name': interest_description,
                     'account_id': interest_payable_account.id,

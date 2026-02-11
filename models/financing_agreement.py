@@ -394,6 +394,8 @@ class FinancingAgreementLine(models.Model):
     expense_account_id = fields.Many2one('account.account', string='Interest Expense Account')
     liability_account_id = fields.Many2one('account.account', string='Liability Account')
     journal_entry_id = fields.Many2one('account.move', string='Opening Entry')
+    receivable_account_id = fields.Many2one('account.account', string='Dealer Receivable Account')
+    interest_receivable_account_id = fields.Many2one('account.account', string='Dealer Interest Receivable Account')
 
     # Link to interest bills
     interest_bill_ids = fields.One2many('vehicle.financing', 'agreement_line_id', string='Interest Bills')
@@ -410,6 +412,7 @@ class FinancingAgreementLine(models.Model):
     interest_bill_count = fields.Integer(string='Interest Bills', compute='_compute_counts')
     transaction_count = fields.Integer(string='Transactions', compute='_compute_counts')
     transaction_ids = fields.One2many('vehicle.financing.transaction', compute='_compute_transactions')
+    
 
     @api.depends('interest_bill_ids.interest_amount', 'interest_bill_ids.state')
     def _compute_accumulated_interest(self):
@@ -582,6 +585,27 @@ class FinancingAgreementLine(models.Model):
             'name': _('Floor plan financing - %s') % vehicle.name,
             'account_id': liability_account.id,
             'partner_id': self.partner_id.id,
+            'debit': 0,
+            'credit': self.financed_amount,
+            'analytic_distribution': analytic_dist or False,
+        }))
+        
+        # DEBIT: Dealer Principal Receivable (The Dealer owes you for the car)
+        line_items.append((0, 0, {
+            'name': _('Floor plan principal - %s') % vehicle.name,
+            'account_id': self.env.ref('nexus_odoo_car_dealer.account_floor_plan_receivable').id, 
+            'partner_id': self.dealer_id.id, # <-- THE DEALER
+            'debit': self.financed_amount,
+            'credit': 0,
+            'analytic_distribution': analytic_dist or False,
+        }))
+        
+        # CREDIT: Inventory / Floor Plan Clearing (Removes asset from the books, replaced by Receivable)
+        clearing_account = self.env['account.account'].search([('name', 'ilike', 'Inventory')], limit=1)
+        line_items.append((0, 0, {
+            'name': _('Floor plan clearing - %s') % vehicle.name,
+            'account_id': clearing_account.id if clearing_account else liability_account.id, 
+            'partner_id': self.dealer_id.id,
             'debit': 0,
             'credit': self.financed_amount,
             'analytic_distribution': analytic_dist or False,

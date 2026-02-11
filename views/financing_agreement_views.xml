@@ -204,10 +204,14 @@
                             </group>
                         </group>
                         <group>
-                            <group string="Accounting">
+                            <group string="Accounting (Investor)">
                                 <field name="expense_account_id"/>
                                 <field name="liability_account_id"/>
                                 <field name="journal_entry_id" readonly="1"/>
+                            </group>
+                            <group string="Accounting (Dealer)">
+                                <field name="receivable_account_id"/>
+                                <field name="interest_receivable_account_id"/>
                             </group>
                         </group>
                         <notebook>
