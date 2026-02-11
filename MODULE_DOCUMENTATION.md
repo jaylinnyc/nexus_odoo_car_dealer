@@ -30,7 +30,7 @@ The **Nexus Odoo Car Dealer** module is a comprehensive solution designed specif
 
 ### Primary Objectives:
 
-1. **Vehicle Management**: Track vehicles as products with extended automotive-specific fields (VIN, Make, Model, Year, Mileage)
+1. **Vehicle Management**: Track vehicles with extended automotive-specific fields (VIN, Make, Model, Year, Mileage)
 
 2. **Reservation System**: Enable customers to reserve vehicles through online appointment booking with paid or free appointments
 
